@@ -1,0 +1,3 @@
+# Spectral ruleset for all OpenAPI documents. CI fails on warnings as well as errors.
+extends:
+  - spectral:oas

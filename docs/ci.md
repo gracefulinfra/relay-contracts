@@ -1,0 +1,74 @@
+# CI conventions
+
+Applies to all six `relay-*` repos (ADR-0003).
+
+## Workflow shape
+
+- One workflow per repo, `.github/workflows/ci.yml`, triggered on `pull_request` and on pushes to `main`.
+- `permissions: {}` at the top level. Each job grants only what it needs (`contents: read`, plus
+  `packages: write` and `id-token: write` for the image job).
+- Every Action is pinned to a full commit SHA with a `# vX.Y.Z` comment. Renovate updates both.
+- `actions/checkout` uses `persist-credentials: false`, so later steps cannot reuse the token by accident.
+- Pending work is reported with a `::notice title=Pending...` annotation and a `PENDING:` line from
+  `make`, never as a passing test.
+
+## Required status checks on `main`
+
+| Repo                           | Required checks                 |
+| ------------------------------ | ------------------------------- |
+| relay-api, relay-media-workers | `lint`, `test`, `vuln`, `image` |
+| relay-site, relay-admin        | `check`, `image`                |
+| relay-contracts                | `check`                         |
+| relay-infra                    | `validate`                      |
+
+The `main` ruleset also requires a PR, linear history, and an up-to-date branch, and blocks force-pushes and
+deletion. There are no bypass actors.
+
+## Images
+
+On `main`, the `image` job pushes `ghcr.io/gracefulinfra/<repo>:<full git sha>` for `linux/amd64` and
+`linux/arm64`, signs the image with cosign keyless (Sigstore public-good Fulcio/Rekor, identity = the
+workflow), and attaches a syft SPDX SBOM as a signed `spdxjson` attestation. PR builds build both platforms
+but never push.
+
+Verify a signature:
+
+```bash
+cosign verify ghcr.io/gracefulinfra/relay-api:<sha> \
+  --certificate-identity "https://github.com/gracefulinfra/relay-api/.github/workflows/ci.yml@refs/heads/main" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Verify the SBOM attestation:
+
+```bash
+cosign verify-attestation --type spdxjson ghcr.io/gracefulinfra/relay-api:<sha> \
+  --certificate-identity "https://github.com/gracefulinfra/relay-api/.github/workflows/ci.yml@refs/heads/main" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+## Package authentication
+
+All repos and GHCR packages are public (ADR-0003 B2), so pulling images needs no credentials. If a package is
+ever made private:
+
+- **Clusters** pull with a GHCR token with `read:packages` only, stored with the P0-05 secret mechanism, never in git.
+- **Another repo's workflow** pulls by granting that repo access under the package's
+  _Settings → Manage Actions access_ (read role), then logging in with its own `GITHUB_TOKEN` and
+  `packages: read`. Do not use personal access tokens.
+- **Pushes** only happen from the owning repo's workflow with `packages: write`.
+
+## Cross-repo checkout
+
+Because the repos are public, a workflow can check out another `relay-*` repo with `actions/checkout`
+(`repository: gracefulinfra/relay-contracts`, `ref: <pinned sha>`) and no extra token. Always pin `ref`
+to a commit SHA and record it in the PR (conventions: "Record the commits used from each repository").
+
+If a repo becomes private, use a GitHub App installed on only the repos that are needed, with
+`contents: read`, and mint a short-lived token per job with `actions/create-github-app-token` (pinned by SHA).
+Store the App ID and private key as org secrets that only those repos can use. Do not use personal access tokens.
+
+## Local parity
+
+`make lint` and `make test` run the same tools at the same versions as CI. The prerequisites are in
+[version-matrix.md](version-matrix.md).

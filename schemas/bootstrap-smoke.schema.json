@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gracefulinfra/relay-contracts/schemas/bootstrap-smoke.schema.json",
+  "title": "Bootstrap smoke schema",
+  "description": "Exercises the fixture validator until P0-04 adds real schemas. Delete it then.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}
