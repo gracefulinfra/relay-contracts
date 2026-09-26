@@ -4,7 +4,7 @@
 - Checked: 2026-09-26
 - Primary docs: https://www.tritondigital.com/solutions/podcasting/omny-studio
 
-> **Verified 2026-09-26 (P0-03).** This file is the research-pass evidence for one vendor. Pricing, IAB certification and Apple HLS partner cells were rechecked against primary sources; corrections are marked inline. IAB status comes from the [IAB Tech Lab compliance registry](https://iabtechlab.com/compliance-programs/compliant-companies/). Apple's own partner search ([podcastsconnect.apple.com/partner-search](https://podcastsconnect.apple.com/partner-search)) redirects to an Apple ID sign-in, so partner status is attributed to the vendor or trade press, not an Apple list (checked 2026-09-26). The summary and comparison are in [`../vendors.md`](../vendors.md).
+> **Verified 2026-09-26 (P0-03).** This file is the research-pass evidence for one vendor. Pricing, IAB certification and Apple HLS partner cells were rechecked against primary sources; corrections are marked inline. IAB status comes from the [IAB Tech Lab compliance registry](https://iabtechlab.com/compliance-programs/compliant-companies/). Apple's own partner search ([podcastsconnect.apple.com/partner-search](https://podcastsconnect.apple.com/partner-search)) redirects to an Apple ID sign-in, so partner status is attributed to the vendor or trade press, not an Apple list (checked 2026-09-26). The summary and comparison are in [`../vendors.md`](../vendors.md). **Where this file and `vendors.md` differ, `vendors.md` is authoritative.**
 
 ## Matrix
 

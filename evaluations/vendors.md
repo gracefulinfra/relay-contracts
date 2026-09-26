@@ -26,6 +26,9 @@ Castopod is the exception: it was run hands-on in [P0-02](castopod.md), and its 
 - **Apple HLS partner status.** Apple's guide `[X3]` requires "a hosting provider that supports video on Apple
   Podcasts", authenticated with an Apple Podcasts Connect API key. The public partner lists are Triton's
   March 2026 announcement `[X2]` plus each vendor's own docs. Apple's own partner search was not machine-readable.
+- **Per-vendor research notes** are in [`vendors/`](vendors/), one file per option. They add detail, lock-in risks,
+  and notes on pages that failed to load. **Where a note and this matrix differ, the matrix is authoritative.** Its
+  cells were rechecked against primary sources, and every cited URL returned HTTP 200 on 2026-09-26.
 
 Legend: **Yes** documented and available · **Partial** documented with a material limit · **No** documented as
 unavailable · **Undocumented** docs are silent · **N/A** not applicable to this product type.

@@ -70,26 +70,38 @@ and [`castopod.md`](../evaluations/castopod.md#evidence-index).
 | R13 | No proprietary runtime; demonstrable move between providers (rule 1, P0-07, P3-08)             | **Gap by definition.** The platform is the vendor                                                                                  | **Partial.** Self-hostable, but MariaDB, file sessions, and no Helm chart          | Planned (P0-05–P0-07)                                               |
 | R14 | Network-controlled domains for site, feeds, and media (pitch §4)                               | **Partial.** Custom website domains are common; custom feed domains only on Acast Pro `[AC12]`                                     | **Meets** (self-hosted)                                                            | Planned                                                             |
 | R15 | Support and operations: on-call, backups, upgrades (pitch §9)                                  | **Meets.** Vendor-operated                                                                                                         | **Gap.** You operate a PHP/MariaDB app plus your AGPL fork                         | Planned (P1-18). Operating cost is carried by the project           |
+| R16 | Operable by one person, with a measured resource profile (review report 2026-09-25)            | **Meets.** The vendor runs it                                                                                                      | **Partial.** One Compose stack, but it is a second runtime alongside Relay         | **At risk.** The full stack must fit a laptop (P0-05, P0-08)        |
 
-Summary. Option (a) meets most of the **commodity** rows (R1, R4, R6, R8–R10, R15) today. It has gaps exactly
+Summary. Option (a) meets most of the **commodity** rows (R1, R4, R6, R8–R10, R15, R16) today. It has gaps exactly
 where the pitch places Relay's differentiation: R2, R11, R12, R13. Option (b) starts ahead on R1, R5, and R14, but
 its gaps (R2, R3, R6, R9, R11, R12) are in Castopod's core, so closing them means rewriting the fork in a stack
 Relay does not use (P0-02). Option (c) meets nothing yet. Every row is a planned, gated prompt, and the gaps that
-define the pitch are only closed by (c).
+define the pitch are only closed by (c). Its weakest row is R16: one person has to be able to run it.
+
+### Published cost for the same pilot
+
+The pilot is 2 shows with video, about 10k downloads a month, 3 staff seats, and 1 private feed. Prices are list
+prices from [`vendors.md`](../evaluations/vendors.md) section C.
+
+| Option | Published monthly cost                                                                                                                                                                                                                                                                                | Engineering effort (solo)                                                                                  |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| (a)    | Host: Captivate $19 plus $12 per video podcast = **$43** `[CV1][CV3]`; Acast Video **$50** `[AC1]`; Castos Pro **$99** `[CA1]`; Transistor $19, but video is waitlisted `[TR1][TR3]`; Omny not published. **Plus** Ghost Publisher $29 for comments and memberships `[GH1]`. Total about **$72–$128** | Low for hosting. R2, R11, and R12 would still need a custom editorial and export layer on the vendor's API |
+| (b)    | Self-hosted: AGPL-3.0 at €0 plus infrastructure. Managed: €9.96–€96 `[CO2]`                                                                                                                                                                                                                           | High. Closing R3, R9, R11, and R12 means rewriting Castopod's core in PHP and MariaDB (P0-02)              |
+| (c)    | Infrastructure only. The P0-08 cost model quantifies it                                                                                                                                                                                                                                               | Highest. Phase 1 is the first useful deliverable; later phases are gated options                           |
 
 ## The pitch's decision equation (§9)
 
 `time saved + attributable incremental contribution margin + strategic value of control`
 **>** `full ongoing cost + migration cost + opportunity cost`
 
-| Term                                         | (a) Integrated vendor                                                                                                          | (b) Castopod-based                                                           | (c) Custom Relay                                                                                                                                                               |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Time saved                                   | Not measured (D5). Likely highest in the short term, since nothing is built                                                    | Not measured                                                                 | Not measured. Any workflow benefit is **hypothetical** for a portfolio project                                                                                                 |
-| Attributable incremental contribution margin | **0.** No network, no revenue (D1)                                                                                             | **0**                                                                        | **0.** Stripe and DAI are demonstrated in test mode against a mock partner only (A11)                                                                                          |
-| Strategic value of control                   | **≈ 0 for this project.** Demonstrates configuration, not architecture. Rules 1, 2, and 5 cannot be shown                      | **Low.** Demonstrates operating and patching someone else's PHP/AGPL core    | **High, and it is the project's purpose.** Demonstrates provider-neutral delivery, portability (P0-07), release manifests, and export                                          |
-| Full ongoing cost                            | **Lowest and known.** A 2-show network costs $19–$64/mo at list price `[TR1][CV1][BE1]`, plus Ghost $29/mo. Omny not published | Infrastructure plus maintaining an AGPL fork (security patches, v2 upgrades) | Infrastructure plus the engineering and operations effort. Pitch illustration: ~12–15 engineer-months for discovery plus pilot. Portfolio: owner's time. **P0-08 models this** |
-| Migration cost                               | Low in, **high out.** No documented full export (R11)                                                                          | Low in (P0-02 import worked), high out (W-EXPORT)                            | Build P1-16 import and P1-20 export. Exit cost is low by design                                                                                                                |
-| Opportunity cost                             | Low                                                                                                                            | Medium: effort goes into a codebase that isn't reusable                      | **High in calendar time.** Every hour here isn't spent elsewhere                                                                                                               |
+| Term                                         | (a) Integrated vendor                                                                                     | (b) Castopod-based                                                           | (c) Custom Relay                                                                                                                                                               |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Time saved                                   | Not measured (D5). Likely highest in the short term, since nothing is built                               | Not measured                                                                 | Not measured. Any workflow benefit is **hypothetical** for a portfolio project                                                                                                 |
+| Attributable incremental contribution margin | **0.** No network, no revenue (D1)                                                                        | **0**                                                                        | **0.** Stripe and DAI are demonstrated in test mode against a mock partner only (A11)                                                                                          |
+| Strategic value of control                   | **≈ 0 for this project.** Demonstrates configuration, not architecture. Rules 1, 2, and 5 cannot be shown | **Low.** Demonstrates operating and patching someone else's PHP/AGPL core    | **High, and it is the project's purpose.** Demonstrates provider-neutral delivery, portability (P0-07), release manifests, and export                                          |
+| Full ongoing cost                            | **Lowest and known.** About $72–$128/mo for the pilot above, including Ghost. Omny not published          | Infrastructure plus maintaining an AGPL fork (security patches, v2 upgrades) | Infrastructure plus the engineering and operations effort. Pitch illustration: ~12–15 engineer-months for discovery plus pilot. Portfolio: owner's time. **P0-08 models this** |
+| Migration cost                               | Low in, **high out.** No documented full export (R11)                                                     | Low in (P0-02 import worked), high out (W-EXPORT)                            | Build P1-16 import and P1-20 export. Exit cost is low by design                                                                                                                |
+| Opportunity cost                             | Low                                                                                                       | Medium: effort goes into a codebase that isn't reusable                      | **High in calendar time.** Every hour here isn't spent elsewhere                                                                                                               |
 
 **Reading the equation honestly.**
 
@@ -102,6 +114,9 @@ define the pitch are only closed by (c).
   demonstration would be of Castopod, not of Relay. The inequality holds for (c) only because the project's
   purpose is the demonstration. That is a legitimate reason for this project, and it would **not** be a reason for
   a network.
+- Because (c) wins only on strategic value, **its costs must stay bounded**. Phase 1 is the first useful
+  deliverable, and later phases are gated options (review report). If the cost side outgrows the budget P0-08
+  sets, the inequality fails for (c) too.
 
 ## Decision Outcome
 
@@ -119,8 +134,12 @@ hosting:
   IAB v2.2 filtering details, and redirect-out as a first-class feature.
 - **Integrate, don't rebuild:** destinations (Apple via RSS video, Spotify via RSS audio, YouTube via the Data API
   with audit caveats), Stripe, and the DAI partner (mock), all behind adapters.
+- **Don't rebuild ad markets.** Keep DAI to an adapter plus a mock (A11). Sponsorship records belong to Relay, and
+  ad demand would come from a partner.
 - **Don't claim:** IAB certification, Apple HLS delivery, or Spotify video from an external host. Each needs a
   commercial partnership that a self-built host does not have `[X1][X3][SP12]`.
+- **Keep Omny Studio as the named benchmark** in portfolio write-ups. Relay's claim is workflow fit and ownership,
+  not feature breadth.
 
 ### Consequences
 
@@ -134,7 +153,7 @@ hosting:
   certification, programmatic demand, and Spotify video monetisation. Relay's video story is weaker than
   Captivate's or Omny's.
 - Neutral, because the counterfactual is recorded. If Relay's framing ever changed to serving a real network, this
-  ADR already argues for (a).
+  ADR already argues for (a). The recommendation must not be quoted as evidence that a real network should build.
 
 ### Confirmation
 
@@ -153,6 +172,8 @@ Toward **(a) integrated vendor**:
   events and event export.
 - P0-05 to P0-07 show that portability can't be demonstrated within the Phase 0 budget, which removes the main
   strategic value term for (c).
+- **Apple Podcasts video becomes a hard requirement.** Only partner hosts can deliver it `[X3]`, so that
+  requirement alone favours (a) for video.
 
 Toward **(b) Castopod-based**:
 
@@ -162,6 +183,8 @@ Toward **(b) Castopod-based**:
 
 Toward **narrowing (c)** (P0-08 "narrow scope"):
 
+- The platform doesn't fit one person (R16): P0-05 shows the stack can't run within the laptop budget, or P0-07's
+  portability rehearsal needs major manual work.
 - The P0-08 cost model shows Phase 1 is unaffordable within the owner's time budget. The fallback is to build R2,
   R11, and R12 around a bought host (vendor webhooks and API as the ingest path). That is a hybrid of (a) and (c),
   and it depends on the thin vendor export surface documented in P0-03.
@@ -194,8 +217,10 @@ Toward **narrowing (c)** (P0-08 "narrow scope"):
 
 ## More Information
 
-- Evidence: [evaluations/vendors.md](../evaluations/vendors.md) (P0-03) and
-  [evaluations/castopod.md](../evaluations/castopod.md) (P0-02).
+- Evidence: [evaluations/vendors.md](../evaluations/vendors.md) (P0-03 matrix, authoritative),
+  [evaluations/vendors/](../evaluations/vendors/) (P0-03 per-vendor research notes and lock-in risks), and
+  [evaluations/castopod.md](../evaluations/castopod.md) (P0-02 hands-on).
+- Related: the GUID and media-versioning decisions due from P0-04 (R3), and the P2-09 destination matrix.
 - Pitch §3 (landscape), §4 (differentiation), §9 (economics).
 - [DECISIONS](../../prompts/02-DECISIONS.md) D1, D5, A5, A8, A11 and the research findings on Apple HLS, YouTube
   quotas, and IAB v2.2.
