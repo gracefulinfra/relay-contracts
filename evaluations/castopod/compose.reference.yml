@@ -1,0 +1,63 @@
+# Reference Compose for the P0-02 Castopod evaluation (default local-disk instance).
+# Secret VALUES come from a generated, gitignored .env (never committed).
+# The S3-backed variant adds SeaweedFS + CP_MEDIA_* pointing at the bucket; see evaluations/castopod.md W-S3.
+
+# P0-02 Castopod evaluation — derived from https://docs.castopod.org/main/en/getting-started/docker/
+# Pinned by digest; secrets come from .env (generated, never committed).
+services:
+  castopod:
+    image: castopod/castopod:1.15.5@sha256:4e4f0440520f45257bfeac7be4347defd20048b4efef8f53d73ec9ed3a4f7966
+    volumes:
+      - castopod-media:/app/public/media
+    environment:
+      MYSQL_DATABASE: castopod
+      MYSQL_USER: castopod
+      MYSQL_PASSWORD: ${DB_PW}
+      CP_BASEURL: "http://localhost:8080"
+      CP_ANALYTICS_SALT: ${ANALYTICS_SALT}
+      CP_CACHE_HANDLER: redis
+      CP_DISABLE_HTTPS: "1" # documented testing switch; federation requires HTTPS
+      CP_EMAIL_SMTP_HOST: mailpit
+      CP_EMAIL_SMTP_PORT: "1025"
+      CP_EMAIL_SMTP_USERNAME: relay
+      CP_EMAIL_SMTP_PASSWORD: local-only
+      CP_EMAIL_FROM: castopod@relay.test
+      email_SMTPCrypto: "" # CI4 native override; wrapper only allows ssl|tls and Mailpit is plaintext
+      CP_REDIS_HOST: redis
+      CP_REDIS_PASSWORD: ${REDIS_PW}
+    networks: [castopod-app, castopod-db]
+    ports: ["8080:8080"]
+    depends_on:
+      mariadb: { condition: service_healthy }
+      redis: { condition: service_started }
+  mailpit: # local SMTP catcher for invite / magic-link emails
+    image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
+    environment: { MP_SMTP_AUTH_ACCEPT_ANY: "1", MP_SMTP_AUTH_ALLOW_INSECURE: "1" }
+    networks: [castopod-app]
+    ports: ["8025:8025"]
+  mariadb:
+    image: mariadb:12.1@sha256:e487701b1f7e3f47319fe005b417c72becb67824a58b7bd35c6505f070f66dcd
+    networks: [castopod-db]
+    volumes: [castopod-db:/var/lib/mysql]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PW}
+      MYSQL_DATABASE: castopod
+      MYSQL_USER: castopod
+      MYSQL_PASSWORD: ${DB_PW}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  redis:
+    image: redis:8.4-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PW"']
+    environment:
+      REDIS_PW: ${REDIS_PW}
+    volumes: [castopod-cache:/data]
+    networks: [castopod-app]
+volumes: { castopod-media: {}, castopod-db: {}, castopod-cache: {} }
+networks:
+  castopod-app: {}
+  castopod-db: { internal: true }
