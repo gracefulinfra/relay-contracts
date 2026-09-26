@@ -5,197 +5,199 @@ decision-makers: "@lafronzt (project owner)"
 prompt: P0-03
 ---
 
-# Build vs buy: custom Relay core, with vendors as destinations
+# Build vs buy: custom Relay, borrowing from Castopod and the vendor market
 
 ## Context and Problem Statement
 
-The pitch (§9) asks for a fair comparison of three options against the **same** editorial, moderation, migration,
-and support requirements: an integrated vendor, an open-source base with customization, and a custom platform.
-P0-02 evaluated Castopod hands-on ([`evaluations/castopod.md`](../evaluations/castopod.md)). P0-03 evaluated ten
-vendors from public documentation ([`evaluations/vendors.md`](../evaluations/vendors.md)).
+Pitch §9 asks for "a fair comparison between an integrated vendor, an open-source base with customization, and
+the proposed custom platform", using the **same** editorial, moderation, migration, and support requirements for
+each. P0-02 ([Castopod evaluation](../evaluations/castopod.md)) and P0-03 ([vendor desk
+evaluation](../evaluations/vendors.md)) supply the evidence. This ADR records the comparison and a proposed
+decision. Its status stays **`proposed`** until the P0-08 gate finalizes it.
 
-Relay is a portfolio project ([decisions log D1](../../prompts/02-DECISIONS.md)). There's no real network, no
-producers whose time can be saved, and no revenue. This ADR states how that changes the pitch's decision equation
-rather than pretending it doesn't.
+The P0-03 prompt names this file `adr/0003-build-vs-buy.md`. Number 0003 was already used by the P0-01 bootstrap,
+and P0-08 refers to the build-vs-buy ADR as **0005**, so it lives here.
 
-This ADR stays `proposed` until the [P0-08 gate](../../prompts/phase-0/P0-08-gate.md) accepts or rejects it with the
-cost model and the P0-05 to P0-07 platform evidence.
+Relay is a **portfolio project** (DECISIONS D1, D5). There is no network, no revenue, and no producer-time
+measurement. That changes how the pitch's decision equation evaluates, and this ADR says so explicitly rather than
+borrowing a business case it can't support.
 
 ## Decision Drivers
 
-- Same requirements for every option (below), derived from the pitch (§2, §4, §5, §7), the architecture rules in
-  `01-CONVENTIONS.md`, and the decisions log.
-- The pitch's decision equation (§9):
-  **time saved + attributable incremental contribution margin + strategic value of control > full ongoing cost +
-  migration cost + opportunity cost.**
-- For a portfolio project, **strategic value includes demonstrating the architecture**: a provider-portable,
-  GitOps-deployed platform with an auditable release workflow is the thing being shown. A vendor subscription
-  can't demonstrate that.
-- A solo builder's time is the scarcest resource (review report, 2026-09-25). Scope must stay inside what one
-  person can operate.
-
-## Requirements used for every option
-
-| #   | Requirement                                                                                                            | Source                            |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| R1  | Multi-show network with show-scoped roles                                                                              | Pitch §2, §5                      |
-| R2  | Editorial approval before publishing, with an immutable release manifest and ready/blocked/published/out-of-sync state | Pitch §4.1, §5; P0-04             |
-| R3  | Corrections keep the GUID and original `pubDate`; media versions are immutable, checksummed, and at new URLs           | Conventions rules 4–5; P0-04      |
-| R4  | Feeds and media keep working when the application is down                                                              | Conventions rule 2                |
-| R5  | Video, including Apple Podcasts video                                                                                  | Pitch §2, §7                      |
-| R6  | Transcripts and AI output are drafts until a human approves them                                                       | Conventions rule 6; decision A8   |
-| R7  | Comments, follows, and moderation with appeals                                                                         | Pitch §2, §5; decision A10        |
-| R8  | Analytics in separate families, built to IAB v2.2, never summed                                                        | Conventions rule 7; decisions log |
-| R9  | Premium and private feeds that fail closed and can be revoked                                                          | Decision A10; P0-02 finding       |
-| R10 | Sponsorship records and an ad-decision adapter (no real stitching)                                                     | Decision A11                      |
-| R11 | Full, versioned export; no proprietary runtime; runs on a second provider                                              | Conventions rule 1; P1-20; P0-07  |
-| R12 | Import and migration that keep GUIDs and use 301 redirects                                                             | Pitch §5; P1-16                   |
-| R13 | Operable by one person, with a measured resource profile                                                               | Review report, 2026-09-25         |
+- The non-negotiable architecture rules in the [conventions](../../prompts/01-CONVENTIONS.md), especially rule 1
+  (no proprietary runtime), rule 2 (media and feeds survive an API outage), rule 5 (immutable, versioned masters),
+  rule 6 (AI output is a draft until approved), and full export (P1-20).
+- The pitch's differentiators (§4): the release package with approvals, the connected archive, the direct
+  audience relationship with moderation, and verifiable ownership and portability.
+- **Strategic value for a portfolio project means demonstrating the architecture.** The deliverable is evidence
+  that a provider-neutral, GitOps-deployed, portable podcast platform can be designed, built, operated, and moved.
+  An option that hides that architecture behind a vendor contract delivers close to none of this value, however
+  good the product is.
+- Honesty about the counterfactual. For a real 2-show network, buying would very likely win on cost (see below).
+  The ADR must say that, not obscure it.
 
 ## Considered Options
 
-- **(a) Integrated vendor.** The best-fit self-serve host (Transistor, Captivate, or Acast class), with Omny Studio as
-  the enterprise benchmark, and Ghost where community and memberships are needed. Relay would add only thin glue
-  code through the vendors' APIs.
-- **(b) Castopod-based.** Run or fork Castopod 1.15.x (AGPL-3.0) and extend it through v2 plugins or source changes.
-- **(c) Custom Relay.** Build the planned modular monolith and platform. Borrow Castopod's feed and analytics
-  knowledge, and treat Spotify, YouTube, and Apple as destinations behind adapters.
+- **(a) Integrated vendor.** The most representative buy combines a self-serve host with the audience platform its
+  vendor officially integrates with. The reference stack is **Captivate or Transistor for hosting and Ghost for
+  membership and comments**, both of which have official Ghost integrations. **Omny Studio** is the enterprise
+  variant. Destinations (Apple, Spotify, YouTube) are the same in every option.
+- **(b) Castopod-based.** Fork and extend Castopod 1.15.x (AGPL-3.0), or its v2 plugin API, to close the Relay
+  gaps.
+- **(c) Custom Relay.** The six-repo Go/TypeScript platform described in the prompt series, borrowing Castopod's
+  ideas (not its code) and the vendor patterns identified in P0-03.
 
-## Comparison on the same requirements
+## Same requirements, three options
 
-Key: **Met** = documented or demonstrated. **Partial** = some of it, with a documented gap. **Build** = would have to
-be built on top. **Gap** = not achievable within that option. The evidence is in the linked evaluations.
+Scores: **Meets** · **Partial** · **Gap** (not documented or not possible without building it) · **Planned** (in
+the Relay prompt series, not yet built). Evidence IDs point into [`vendors.md`](../evaluations/vendors.md#sources)
+and [`castopod.md`](../evaluations/castopod.md#evidence-index).
 
-| #   | (a) Integrated vendor                                                                                                       | (b) Castopod-based                                                               | (c) Custom Relay                                                                            |
-| --- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| R1  | **Met.** Captivate, Omny, and Acast document show- or network-scoped roles                                                  | **Partial.** Per-podcast roles work; no network entity (P0-02)                   | Build (P1-02, P1-03)                                                                        |
-| R2  | **Build.** No vendor documents an approval step or a release record; all are role-based only                                | **Build.** No approval step or manifest (P0-02)                                  | Build (P0-04, P1-09); this is the pitch's core differentiator                               |
-| R3  | **Partial.** GUIDs are kept; versioning and URL rules for replaced media are undocumented                                   | **Gap.** Replacing media overwrites it in place; slug changes break URLs (P0-02) | Build (P0-04 ADR 0006, P1-04, P1-11)                                                        |
-| R4  | **Met.** Vendors run their own CDNs (their uptime, not Relay's)                                                             | **Gap.** Enclosures are app routes (P0-02)                                       | Build (P1-10, P1-11 snapshots to object storage)                                            |
-| R5  | **Met.** Apple HLS partners: Acast, Omny, Captivate, and Transistor (beta)                                                  | **Gap.** Audio only                                                              | **Partial.** Video via RSS and HLS on the site; no Apple HLS partner access (decisions log) |
-| R6  | **Partial.** Transcripts are editable; no approval state                                                                    | **Partial.** Upload only; no approval state                                      | Build (P1-07)                                                                               |
-| R7  | **Partial.** Only Spotify (in-app) and Ghost (a separate product) have comments; no moderation queue or appeals among hosts | **Partial.** ActivityPub comments; no queue or appeals (P0-02)                   | Build (P2-06, P2-07)                                                                        |
-| R8  | **Partial.** IAB v2.2 certified (Acast, Captivate, Omny); the families aren't separated as Relay requires                   | **Gap.** v2.0 methodology; counts can be faked (P0-02)                           | Build to v2.2 without claiming certification (P1-17, P2-10)                                 |
-| R9  | **Met.** Private feeds on every host; revocation behaviour not verified                                                     | **Gap.** Premium media is publicly reachable (P0-02)                             | Build (P3-03, P3-04)                                                                        |
-| R10 | **Met.** Acast, Omny, Captivate, Transistor, and Castos have dynamic ads (more than R10 asks)                               | **Gap.** Undocumented                                                            | Build, adapter plus mock only (P3-05)                                                       |
-| R11 | **Gap.** Export is RSS plus a 301 redirect; analytics, comments, and subscribers are mostly locked in                       | **Partial.** Self-hostable, but no export and a MariaDB/PHP runtime (P0-02)      | Build (P1-20 export, P0-07 portability)                                                     |
-| R12 | **Met.** Every host documents a 301 redirect in; most document one out                                                      | **Partial.** Import works; no redirect set; item tags lost (P0-02)               | Build (P1-16)                                                                               |
-| R13 | **Met.** The vendor runs it                                                                                                 | **Partial.** One Compose stack, but a second runtime alongside Relay             | **At risk.** The full stack must fit a laptop (P0-05, P0-08)                                |
+| #   | Requirement (source)                                                                           | (a) Integrated vendor                                                                                                              | (b) Castopod-based                                                                 | (c) Custom Relay                                                    |
+| --- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| R1  | Multi-show network with show-scoped roles (P1-02)                                              | **Meets.** Captivate network and podcast roles `[CV2]`; Transistor per-show invites `[TR2]`                                        | **Meets** (W-RBAC)                                                                 | Planned (P1-02)                                                     |
+| R2  | Approval-gated release with a release manifest; AI output is a draft (rules 5–6, P1-09)        | **Gap.** No vendor documents an approval step or release record. Ghost contributor drafts only cover the website `[GH4]`           | **Gap** (no approval gate, no manifest)                                            | Planned (P1-09)                                                     |
+| R3  | Corrections: permanent GUIDs, versioned and checksummed masters (rules 4–5)                    | **Partial.** GUID handling is not documented as a guarantee; replacement semantics undocumented                                    | **Partial.** GUIDs are stable, but masters are overwritten in place (W-CORR-AUDIO) | Planned (P1-04, P1-09)                                              |
+| R4  | Import and migration with GUID preservation and 301 (P1-16, P3-07)                             | **Meets** for import and redirect `[TR9][CV9][AC10]`                                                                               | **Partial.** Namespace tags dropped, no rollback, no 301 (W-IMPORT)                | Planned (P1-16)                                                     |
+| R5  | Comments with a moderation queue, reporting, and appeals (P2-06, P2-07)                        | **Partial.** Ghost has comments and reporting, but no appeals `[GH5]`; hosts have none documented                                  | **Partial.** ActivityPub comments, delete-only moderation                          | Planned (P2-06, P2-07)                                              |
+| R6  | Video: HLS renditions on the owned site, RSS video, Apple where possible (P2-01, P2-02)        | **Meets** for hosting. Captivate is an Apple HLS partner `[CV3]`; Omny emits `alternateEnclosure` `[OM5]`                          | **Gap.** Audio only (W-VIDEO)                                                      | Planned; Apple HLS is **not available** to a self-built host `[X3]` |
+| R7  | Transcripts: generated, human-approved, in the feed, searchable (P1-07, P2-03)                 | **Partial.** Generated and in the feed `[CV4][TR5]`; no approval state; search only on vendor sites                                | **Partial.** Upload only                                                           | Planned (P1-07, P2-03)                                              |
+| R8  | Analytics: IAB v2.2-aligned, metric families kept separate (rule 7, P1-17, P2-10)              | **Meets / Partial.** Captivate and Omny are certified v2.2 `[X1]`; owned-site and destination metrics sit in separate vendor silos | **Partial.** v2.0 self-declared and spoofable (W-ANALYTICS)                        | Planned; aligned, never certified                                   |
+| R9  | Private and premium feeds with signed, expiring media URLs (P3-03, P3-04)                      | **Meets.** Omny signed per-member feeds `[OM7]`; Captivate and Transistor private feeds `[CV6][TR1]`                               | **Gap.** Media URL is public and unsigned (W-PREMIUM)                              | Planned (P3-03, P3-04)                                              |
+| R10 | Sponsor records plus a DAI adapter (P3-01, P3-05)                                              | **Meets** for DAI `[CV8][OM8][AC8]`; sponsor fulfilment records undocumented                                                       | **Gap**                                                                            | Planned (mock partner only)                                         |
+| R11 | Full versioned export: records, GUIDs, revisions, rights, manifests, checksummed media (P1-20) | **Gap.** Only RSS plus 301 everywhere; Ghost JSON without media `[GH7]`; Acast loses analytics after redirect `[AC10]`             | **Gap** (W-EXPORT)                                                                 | Planned (P1-20)                                                     |
+| R12 | Feeds and media keep working when the application is down (rule 2)                             | **Opaque.** It is the vendor's SLA, and Relay can't test or control it                                                             | **Gap.** PHP sits on the media hot path (W-DELIVERY)                               | Planned (P1-10, P1-11)                                              |
+| R13 | No proprietary runtime; demonstrable move between providers (rule 1, P0-07, P3-08)             | **Gap by definition.** The platform is the vendor                                                                                  | **Partial.** Self-hostable, but MariaDB, file sessions, and no Helm chart          | Planned (P0-05–P0-07)                                               |
+| R14 | Network-controlled domains for site, feeds, and media (pitch §4)                               | **Partial.** Custom website domains are common; custom feed domains only on Acast Pro `[AC12]`                                     | **Meets** (self-hosted)                                                            | Planned                                                             |
+| R15 | Support and operations: on-call, backups, upgrades (pitch §9)                                  | **Meets.** Vendor-operated                                                                                                         | **Gap.** You operate a PHP/MariaDB app plus your AGPL fork                         | Planned (P1-18). Operating cost is carried by the project           |
 
-### Cost for the same pilot (2 shows, video, about 10k downloads, 3 seats, 1 private feed)
+Summary. Option (a) meets most of the **commodity** rows (R1, R4, R6, R8–R10, R15) today. It has gaps exactly
+where the pitch places Relay's differentiation: R2, R11, R12, R13. Option (b) starts ahead on R1, R5, and R14, but
+its gaps (R2, R3, R6, R9, R11, R12) are in Castopod's core, so closing them means rewriting the fork in a stack
+Relay does not use (P0-02). Option (c) meets nothing yet. Every row is a planned, gated prompt, and the gaps that
+define the pitch are only closed by (c).
 
-| Option | Published cost                                                                                                                                                             | Engineering effort (solo)                                                                    |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| (a)    | $19 plus video add-on (Captivate), $49 (Transistor), $50 (Acast), or $99 (Castos) a month. Omny unpublished. Plus Ghost at about $58 a month for community and memberships | Low for hosting. R2, R3, and R11 would still need a custom editorial and export layer        |
-| (b)    | Self-hosted and free (AGPL-3.0) plus infrastructure; managed €9.96 to €96 a month                                                                                          | High. Closing R3, R4, R9, and R11 means rewriting Castopod's core in PHP and MariaDB (P0-02) |
-| (c)    | Infrastructure only (the P0-08 cost model will quantify it)                                                                                                                | Highest. Phase 1 is the first useful deliverable; later phases are gated options             |
+## The pitch's decision equation (§9)
 
-## Applying the decision equation
+`time saved + attributable incremental contribution margin + strategic value of control`
+**>** `full ongoing cost + migration cost + opportunity cost`
 
-| Term                            | (a) Vendor                                                                                        | (b) Castopod                                                                                                       | (c) Custom Relay                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| Time saved                      | None to measure: there are no producers (D1, D5)                                                  | None to measure                                                                                                    | None to measure. Simulated workflows can illustrate but not prove savings (review report)     |
-| Incremental contribution margin | $0; there's no revenue (D1)                                                                       | $0                                                                                                                 | $0. Stripe and DAI run in test or mock mode only                                              |
-| Strategic value of control      | **Low.** It shows vendor configuration, not architecture. Demonstrates none of R2, R3, R4, or R11 | **Low to medium.** Shows operating an existing open-source product; the Relay rules can't be met without a rewrite | **High.** Demonstrating the architecture (R2–R4, R11, portability) is the portfolio's purpose |
-| Full ongoing cost               | Low: $49 to $150 a month for the stack                                                            | Medium: running a second runtime                                                                                   | **High:** solo engineering and on-call time, plus infrastructure                              |
-| Migration cost                  | Low in, high out (analytics and subscribers stay behind)                                          | Medium                                                                                                             | Low. Seed data and CC feeds only (A12)                                                        |
-| Opportunity cost                | Low                                                                                               | Medium                                                                                                             | **High:** months of solo work                                                                 |
+| Term                                         | (a) Integrated vendor                                                                                                          | (b) Castopod-based                                                           | (c) Custom Relay                                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Time saved                                   | Not measured (D5). Likely highest in the short term, since nothing is built                                                    | Not measured                                                                 | Not measured. Any workflow benefit is **hypothetical** for a portfolio project                                                                                                 |
+| Attributable incremental contribution margin | **0.** No network, no revenue (D1)                                                                                             | **0**                                                                        | **0.** Stripe and DAI are demonstrated in test mode against a mock partner only (A11)                                                                                          |
+| Strategic value of control                   | **≈ 0 for this project.** Demonstrates configuration, not architecture. Rules 1, 2, and 5 cannot be shown                      | **Low.** Demonstrates operating and patching someone else's PHP/AGPL core    | **High, and it is the project's purpose.** Demonstrates provider-neutral delivery, portability (P0-07), release manifests, and export                                          |
+| Full ongoing cost                            | **Lowest and known.** A 2-show network costs $19–$64/mo at list price `[TR1][CV1][BE1]`, plus Ghost $29/mo. Omny not published | Infrastructure plus maintaining an AGPL fork (security patches, v2 upgrades) | Infrastructure plus the engineering and operations effort. Pitch illustration: ~12–15 engineer-months for discovery plus pilot. Portfolio: owner's time. **P0-08 models this** |
+| Migration cost                               | Low in, **high out.** No documented full export (R11)                                                                          | Low in (P0-02 import worked), high out (W-EXPORT)                            | Build P1-16 import and P1-20 export. Exit cost is low by design                                                                                                                |
+| Opportunity cost                             | Low                                                                                                                            | Medium: effort goes into a codebase that isn't reusable                      | **High in calendar time.** Every hour here isn't spent elsewhere                                                                                                               |
 
-For a portfolio project the equation comes down to **strategic value of control compared with ongoing and
-opportunity cost**, because time saved and margin are zero for every option. Only option (c) produces strategic
-value. That is exactly why the costs must stay bounded: Phase 1 is the first useful deliverable, and later phases
-are gated options (review report). Option (c) wins only if the cost side stays inside the budget P0-08 sets.
+**Reading the equation honestly.**
 
-**For a real network, the same evidence would point the other way.** The vendors already cover R1, R4, R5, R9, R10,
-and R12. A self-serve host costs $50 to $100 a month, and time saved and margin would be real, measurable terms.
-The rational choice would be to **buy hosting** (a) and build only a thin editorial and export layer (R2, R3, R11)
-against the host's API, if the measured workflow gap justified even that. The pitch says this directly: "The custom
-option should win on strategic value and measured workflow fit, not an assumption that storing MP3s is expensive."
-This ADR doesn't claim otherwise.
+- **For a real 2-show network**, the left side of (c) is unproven (no time savings are measured and the margin is
+  0), while the right side is certain and large. On today's evidence, **(a) wins**: buy a certified host with
+  Apple HLS (for example Captivate) and pair it with Ghost for membership and comments. The pitch warns against
+  building because "storing MP3s is expensive", and this evaluation confirms that hosting is a commodity.
+- **For this portfolio project**, the only non-zero benefit term is **strategic value**, and here it means
+  demonstrating the architecture. (a) scores about zero on it by construction, and (b) scores low because the
+  demonstration would be of Castopod, not of Relay. The inequality holds for (c) only because the project's
+  purpose is the demonstration. That is a legitimate reason for this project, and it would **not** be a reason for
+  a network.
 
 ## Decision Outcome
 
-Proposed option: **(c) Custom Relay**, scoped as follows:
+Proposed option: **"(c) Custom Relay"**. It is the only option that can satisfy R2, R11, R12, and R13, which are
+the requirements that make Relay a distinct proposal rather than a re-hosting exercise. For a portfolio project, the
+strategic value term in §9 is the demonstration of that architecture.
 
-1. **Build** the parts no vendor documents and that define the portfolio: the editorial workflow with an immutable
-   release manifest (R2), versioned immutable media and correction rules (R3), feeds and media that survive an
-   application outage (R4), full export (R11), and a demonstrated second provider (P0-07).
-2. **Borrow and don't fork** Castopod: its GUID storage, namespace coverage, and privacy-preserving analytics
-   model. Target IAB v2.2 with trusted-proxy IP validation instead of Castopod's v2.0 approach (P0-02).
-3. **Treat vendors as destinations, not foundations.** Spotify for Creators, YouTube, and Apple get adapters in
-   P2-09. Apple video stays a "standard RSS video enclosure" or "manual" (decisions log). YouTube uploads assume
-   the quota and forced-private rules until an audit completes.
-4. **Don't rebuild commercial ad markets.** Keep the dynamic ad requirement to an adapter plus a mock (A11).
-   Sponsorship records are Relay's; ad demand would come from a partner.
-5. **Keep Omny Studio as the named benchmark** in portfolio write-ups. Relay's claim is workflow fit and ownership,
-   not feature breadth.
+Scope follows from the evaluations, so the build targets the differentiators rather than competing with commodity
+hosting:
+
+- **Build:** the release package and approvals, versioned masters, snapshot feeds and media served from object
+  storage, export, portability, the connected archive, and moderation with appeals.
+- **Borrow (ideas, not code):** Castopod's analytics filtering and namespace checklist (P0-02). From Omny: signed
+  webhooks, audit events, revocable per-member signing keys, and a download-event export. From Captivate and Acast:
+  IAB v2.2 filtering details, and redirect-out as a first-class feature.
+- **Integrate, don't rebuild:** destinations (Apple via RSS video, Spotify via RSS audio, YouTube via the Data API
+  with audit caveats), Stripe, and the DAI partner (mock), all behind adapters.
+- **Don't claim:** IAB certification, Apple HLS delivery, or Spotify video from an external host. Each needs a
+  commercial partnership that a self-built host does not have `[X1][X3][SP12]`.
 
 ### Consequences
 
-- Good, because it demonstrates the architecture the pitch argues for, which no vendor option can do.
-- Good, because the release manifest, versioning, and export rules are exactly the gaps found in every vendor and
-  in Castopod, so the build targets real differences rather than re-creating commodity hosting.
-- Bad, because it is the most expensive option in solo engineering time. Phases 2 and 3 may never be built.
-- Bad, because Relay can't match partner-only capabilities: Apple HLS video delivery and certified measurement.
-  Portfolio materials must say so plainly.
-- Neutral, because the recommendation depends on the portfolio framing. It must not be quoted as evidence that a
-  real network should build.
+- Good, because every architecture rule and every pitch differentiator can be demonstrated and tested (R2,
+  R11–R13).
+- Good, because Relay's contracts can copy proven vendor shapes (signed webhooks, per-member keys, event export)
+  instead of inventing them.
+- Bad, because (c) has the highest opportunity cost and zero working features today. Commodity features (R1, R4,
+  R6, R8–R10) have to be rebuilt just to reach parity with a $19/mo plan.
+- Bad, because some real-world capabilities can't be reached by a self-built host at all: Apple HLS, IAB
+  certification, programmatic demand, and Spotify video monetisation. Relay's video story is weaker than
+  Captivate's or Omny's.
+- Neutral, because the counterfactual is recorded. If Relay's framing ever changed to serving a real network, this
+  ADR already argues for (a).
 
 ### Confirmation
 
-- P0-08 records `accepted` or `rejected`, using the cost model, the P0-05 resource profile, and the P0-07
-  portability evidence.
-- Phase gates (P1-20, P2-11, P3-08) recheck whether the build still targets R2, R3, R4, and R11 rather than
-  commodity features.
+- P0-08 confirms or rejects this ADR, using the cost model and portability evidence from P0-05 to P0-07.
+- Each Phase 1–3 gate re-checks the R-table rows its prompts claim. A row may move to **Meets** only with the
+  evidence the prompt's acceptance criteria require.
 
-## What evidence would change this decision
+## Evidence that would change the decision
 
-- **The platform doesn't fit one person.** If P0-05 or P0-07 show the stack can't run within the laptop budget, or
-  portability fails without major manual work, narrow (c) to the editorial, release, and export layer on top of a
-  vendor host's API. That hybrid is (a) plus a thin (c).
-- **The P0-08 cost model** puts Phase 1 beyond the demonstration budget P0-08 sets.
-- **A vendor documents what's missing.** For example, an approval workflow, immutable release records, versioned
-  media URLs, and full export through its API: the Omny Management API's audit events are the closest candidate.
-  If so, (a) covers R2, R3, and R11, and the portfolio case rests on portability alone.
-- **Castopod v2's plugin API** gains hooks for delivery outside the app, versioned media, and approval states,
-  making (b) viable without a fork.
-- **A real network becomes available.** Time saved and contribution margin become measurable and would likely
-  outweigh strategic value. Re-run this comparison with producer measurements, and expect (a) or a hybrid.
-- **Apple Podcasts video becomes a hard requirement.** Only partner hosts can deliver it, so that requirement alone
-  would favour (a) for video.
+Toward **(a) integrated vendor**:
+
+- The project's purpose changes from demonstration to operating a real network, so the margin and time-saved
+  terms become measurable and strategic value no longer dominates.
+- A vendor documents an **approval-gated release with a durable release record** (R2) **and** a **full,
+  versioned, GUID-anchored export including media** (R11). Omny is the most likely candidate, given its audit
+  events and event export.
+- P0-05 to P0-07 show that portability can't be demonstrated within the Phase 0 budget, which removes the main
+  strategic value term for (c).
+
+Toward **(b) Castopod-based**:
+
+- Castopod v2 (stable) ships plugin hooks for **storage and delivery** (so media and feeds can be served without
+  the app), **media versioning**, and an **export**. That would close R3, R11, and R12 without a core fork.
+- Relay decides it is acceptable for the server to be AGPL-3.0, which changes the licensing trade-off in P0-02.
+
+Toward **narrowing (c)** (P0-08 "narrow scope"):
+
+- The P0-08 cost model shows Phase 1 is unaffordable within the owner's time budget. The fallback is to build R2,
+  R11, and R12 around a bought host (vendor webhooks and API as the ingest path). That is a hybrid of (a) and (c),
+  and it depends on the thin vendor export surface documented in P0-03.
 
 ## Pros and Cons of the Options
 
 ### (a) Integrated vendor
 
-- Good, because hosting, CDN, video (including Apple HLS for partners), private feeds, dynamic ads, and certified
-  measurement are available now for $19 to $99 a month.
-- Good, because Omny, Transistor, and Ghost expose read/write APIs with webhooks, so a thin custom layer is
-  possible.
-- Bad, because no vendor documents an approval step or a release record, and export is limited to RSS plus a
-  redirect. Analytics history, comments, and subscribers stay with the vendor.
-- Bad, because comments and moderation need a second product (Ghost), which splits the audience record.
-- Bad, because for a portfolio it demonstrates configuration rather than architecture.
+- Good, because commodity features are available today, cheaply, from certified and Apple-partnered vendors.
+- Good, because operations, on-call, and upgrades are the vendor's job.
+- Bad, because no vendor documents approvals, release manifests, or full export. Offline delivery is an opaque SLA.
+- Bad, because integration surfaces are thin (Acast: one webhook; Castos: no webhooks; Captivate: API by request),
+  so a buy-plus-extend hybrid would be fragile.
+- Bad, because for this project it demonstrates nothing about the architecture.
 
 ### (b) Castopod-based
 
-- Good, because it is open source, self-hostable, and strong on namespace tags and fediverse comments.
-- Bad, because P0-02 found that four load-bearing Relay rules (R3, R4, R9, R11) can't be met without rewriting its
-  core in a language and database Relay doesn't otherwise use.
-- Bad, because modifying and hosting it carries AGPL-3.0 obligations.
+- Good, because it is open source and self-hostable, has strong namespace and ActivityPub support, and a working
+  multi-show RBAC.
+- Bad, because its core conflicts with rules 2 and 5 and lacks approvals and export. Fixing that means rewriting
+  the fork.
+- Bad, because modifying and hosting it triggers AGPL obligations, and it uses a stack (PHP, MariaDB) that Relay
+  does not.
 
 ### (c) Custom Relay
 
-- Good, because it targets exactly the gaps shared by every other option (R2, R3, R4, R11).
-- Good, because it is the only option that demonstrates provider portability.
-- Bad, because it has the highest engineering and operating cost for one person.
-- Bad, because it can't offer Apple HLS partner delivery or certified measurement.
+- Good, because it is the only option that can meet R2 and R11–R13 and demonstrate portability.
+- Good, because its scope can be focused on the differentiators, borrowing and integrating everything else.
+- Bad, because it has the highest cost and risk, and some capabilities are commercially out of reach.
 
 ## More Information
 
-- Evidence: [`evaluations/vendors.md`](../evaluations/vendors.md) (desk evaluation, checked 2026-09-26),
-  [`evaluations/vendors/`](../evaluations/vendors/) (per-vendor citations),
-  [`evaluations/castopod.md`](../evaluations/castopod.md) (hands-on, P0-02).
-- Related: ADR 0006 (GUID and media versioning, P0-04), the decisions log (D1, A5–A11), and pitch §3, §4, and §9.
-- Revisit at the P0-08 gate. After that, revisit at each phase gate, or when any trigger above occurs. Vendor
-  facts are true as of 2026-09-26; recheck them before relying on them in a later decision.
+- Evidence: [evaluations/vendors.md](../evaluations/vendors.md) (P0-03) and
+  [evaluations/castopod.md](../evaluations/castopod.md) (P0-02).
+- Pitch §3 (landscape), §4 (differentiation), §9 (economics).
+- [DECISIONS](../../prompts/02-DECISIONS.md) D1, D5, A5, A8, A11 and the research findings on Apple HLS, YouTube
+  quotas, and IAB v2.2.
+- Revisit at **P0-08** (finalize), and whenever a vendor in `vendors.md` documents R2 or R11. Vendor docs change
+  often, so re-check the matrix before the P3-08 final report.
