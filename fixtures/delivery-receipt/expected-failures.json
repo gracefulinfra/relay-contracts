@@ -1,0 +1,13 @@
+{
+  "confirmed-by-on-submitted.json": "confirmedBy is only allowed on a confirmed receipt",
+  "delivered-with-error.json": "must NOT be valid",
+  "delivered-with-failing-check.json": "delivered receipt has failing check feedSnapshot.guidPreserved",
+  "destination-delivered.json": "/result must be equal to one of the allowed values",
+  "destination-without-target.json": "/output must have required property 'publicationTargetId'",
+  "empty-checks.json": "must NOT have fewer than 1 properties",
+  "failed-without-error.json": "must have required property 'error'",
+  "feed-delivered-without-snapshot.json": "must have required property 'feedSnapshot'",
+  "owned-output-with-destination-key.json": "/output must NOT be valid",
+  "provider-as-kind.json": "/output/kind must be equal to one of the allowed values",
+  "wrong-idempotency-key.json": "idempotencyKey must be"
+}

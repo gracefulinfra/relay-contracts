@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "f173a637-2c55-58de-a279-f5cb08c0f88d",
+  "sequence": 1,
+  "kind": "release",
+  "previousManifestId": null,
+  "network": {
+    "id": "9e3bdf6e-d535-5b73-980a-b83006adb65d",
+    "slug": "relay-demo"
+  },
+  "show": {
+    "id": "b3574351-38e3-5000-9fb9-3083dfe3714f",
+    "podcastGuid": "23913e19-7579-5cfe-a87c-43f1f2d78428",
+    "slug": "signal-garden"
+  },
+  "episode": {
+    "id": "85fe90d4-b193-51ee-ae52-00c2b41b660a",
+    "guid": "tag:castle-radio.example,2019:episode/42"
+  },
+  "revision": {
+    "id": "8e902807-a426-5908-934e-ae974451b43b",
+    "number": 1
+  },
+  "access": {
+    "accessClass": "paid",
+    "edition": "ad_free",
+    "requiredEntitlement": "ad_free"
+  },
+  "originalPublishedAt": "2019-03-14T06:00:00Z",
+  "effectiveAt": "2019-03-14T06:00:00Z",
+  "scheduleGeneration": 0,
+  "metadata": {
+    "episode": {
+      "title": "Tide Pools at Dawn",
+      "summary": "A walk along the fictional Signal Garden coast.",
+      "notesHtml": "<p>Mara and Dev walk the tide pools of the fictional Signal Garden coast.</p>",
+      "notesSha256": "54fac761b256534203e5de5b5003777ffb48749d6224b9c59b68365efb3c7666",
+      "episodeType": "full",
+      "seasonNumber": 1,
+      "episodeNumber": 1,
+      "explicit": false,
+      "language": "en",
+      "link": "https://relay.test/shows/signal-garden/tide-pools-at-dawn",
+      "persons": [],
+      "topics": ["nature", "field-recording"]
+    },
+    "show": {
+      "title": "Signal Garden",
+      "author": "Relay Demo Network",
+      "language": "en",
+      "explicit": false,
+      "categories": [
+        {
+          "name": "Science",
+          "subcategory": "Nature"
+        }
+      ],
+      "link": "https://relay.test/shows/signal-garden",
+      "feedUrl": "https://feeds.relay.test/signal-garden.xml",
+      "imageUrl": "https://media.relay.test/a/7a5b3315-4c5b-59a4-86e7-7676bb8eb976/signal-garden-3000.jpg",
+      "copyright": "CC BY 4.0 Relay Demo Network"
+    }
+  },
+  "enclosure": {
+    "assetId": "f8c12e8a-2cf9-5d49-8246-2b934a7a5421",
+    "url": "https://media.relay.test/a/f8c12e8a-2cf9-5d49-8246-2b934a7a5421/episode-42-ad-free.m4a",
+    "length": 30011222,
+    "mime": "audio/mp4"
+  },
+  "assets": [
+    {
+      "assetId": "f8c12e8a-2cf9-5d49-8246-2b934a7a5421",
+      "lineageId": "afc4f7a6-79fb-5daa-86bc-ebbff16a96b3",
+      "version": 1,
+      "role": "rendition",
+      "format": "aac_m4a",
+      "edition": "ad_free",
+      "mime": "audio/mp4",
+      "bytes": 30011222,
+      "sha256": "80b378a8df9360fe2a61e6546eb48f41c932cfde4775dd583d1bf95d22e66c21",
+      "url": "https://media.relay.test/a/f8c12e8a-2cf9-5d49-8246-2b934a7a5421/episode-42-ad-free.m4a",
+      "sourceAssetId": null,
+      "durationMs": 1874000
+    }
+  ],
+  "transcript": null,
+  "chapters": null,
+  "rights": [
+    {
+      "rightsRecordId": "430030ce-d0a5-525d-b8cd-df72f4f364b5",
+      "subject": "license",
+      "license": "CC-BY-4.0",
+      "attribution": "Relay Demo Network",
+      "expiresAt": "2030-01-01T00:00:00Z"
+    }
+  ],
+  "approvals": [
+    {
+      "approvalId": "33a47f04-8111-553c-96c9-d392b8ab4894",
+      "subjectType": "episode_revision",
+      "subjectId": "8e902807-a426-5908-934e-ae974451b43b",
+      "approverId": "46768018-705d-587f-9c80-40234b0c10ed",
+      "approvedAt": "2026-10-01T08:00:00Z"
+    }
+  ],
+  "createdAt": "2026-10-02T08:00:00Z",
+  "createdBy": {
+    "actorType": "staff",
+    "actorId": "46768018-705d-587f-9c80-40234b0c10ed"
+  }
+}
