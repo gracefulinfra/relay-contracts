@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "576bbd1a-f6a4-5f72-9506-884e48da64fd",
+  "manifestId": "4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+  "manifestSha256": "593a2f0d50dbace61fc39b67edc9278ca0c4f0bb1c58c595b1af9d006b2be9c9",
+  "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+  "output": {
+    "kind": "feed_snapshot"
+  },
+  "result": "delivered",
+  "attempt": 1,
+  "idempotencyKey": "feed_snapshot:f4d50083-4b26-5567-9ae2-ab6c544e1617",
+  "occurredAt": "2026-10-05T09:00:20Z",
+  "feedSnapshot": {
+    "feedSnapshotId": "2f2ae043-ae50-5fbf-ae72-e6ea622f0763",
+    "variant": "public",
+    "generation": 12,
+    "objectKey": "feeds/signal-garden/public/000012.xml",
+    "sha256": "51576682a55c39d5d1257d468e56eb2a5bb4851bb526e0fc9a15c108ededc4e1",
+    "bytes": 84211,
+    "checks": {
+      "xmlWellFormed": true,
+      "guidPreserved": true,
+      "enclosureMatchesManifest": true,
+      "pubDatePreserved": true
+    }
+  }
+}

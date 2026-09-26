@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gracefulinfra/relay-contracts/schemas/delivery-receipt.schema.json",
+  "title": "Delivery receipt",
+  "description": "The immutable record of one attempt to deliver a release manifest to one output: a feed snapshot, the website, the media edge, or an external destination. Receipts reference the manifest; the manifest never references receipts. Delivery state is derived from the receipts (model/state-machines.md §5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "receiptId",
+    "manifestId",
+    "manifestSha256",
+    "episodeId",
+    "output",
+    "result",
+    "attempt",
+    "idempotencyKey",
+    "occurredAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "receiptId": { "$ref": "#/$defs/uuid" },
+    "manifestId": { "$ref": "#/$defs/uuid" },
+    "manifestSha256": {
+      "description": "SHA-256 of the manifest's RFC 8785 canonical JSON, so a receipt proves which exact manifest it delivered.",
+      "$ref": "#/$defs/sha256"
+    },
+    "episodeId": { "$ref": "#/$defs/uuid" },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["feed_snapshot", "website", "media_edge", "destination"] },
+        "publicationTargetId": { "$ref": "#/$defs/uuid" },
+        "destinationKey": {
+          "description": "The destination's key, as data (for example `youtube`). Never a type.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "maxLength": 64
+        }
+      },
+      "if": { "properties": { "kind": { "const": "destination" } } },
+      "then": { "required": ["publicationTargetId", "destinationKey"] },
+      "else": {
+        "not": {
+          "anyOf": [{ "required": ["publicationTargetId"] }, { "required": ["destinationKey"] }]
+        }
+      }
+    },
+    "result": {
+      "description": "Owned outputs end in `delivered` or `failed`. Destinations use `submitted`, `confirmed`, `failed`, `manual_required`, or `withdrawn`.",
+      "enum": ["delivered", "failed", "submitted", "confirmed", "manual_required", "withdrawn"]
+    },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "idempotencyKey": {
+      "description": "`{output}:{manifestId}` for owned outputs, `{publicationTargetId}:{manifestId}` for destinations. Retries reuse it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "occurredAt": { "$ref": "#/$defs/timestamp" },
+    "feedSnapshot": {
+      "description": "Required for a delivered feed snapshot: the object that was written and verified.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feedSnapshotId",
+        "variant",
+        "generation",
+        "objectKey",
+        "sha256",
+        "bytes",
+        "checks"
+      ],
+      "properties": {
+        "feedSnapshotId": { "$ref": "#/$defs/uuid" },
+        "variant": { "enum": ["public", "private_template"] },
+        "generation": { "type": "integer", "minimum": 1 },
+        "objectKey": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "checks": { "$ref": "#/$defs/checks" }
+      }
+    },
+    "edge": {
+      "description": "Required for a delivered media_edge output: the HEAD and byte-range checks of the enclosure URL.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "status", "contentLength", "contentType", "rangeStatus", "checks"],
+      "properties": {
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "contentLength": { "type": "integer", "minimum": 0 },
+        "contentType": { "type": "string", "minLength": 1 },
+        "rangeStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "checks": { "$ref": "#/$defs/checks" }
+      }
+    },
+    "external": {
+      "description": "What the destination returned. Values are opaque data.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "externalId": { "type": "string", "maxLength": 500 },
+        "externalUrl": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "confirmedBy": {
+          "description": "For a manual confirmation: the staff user who recorded it.",
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "error": {
+      "description": "Required when result is `failed`. A problem+json-shaped summary, redacted of tokens and signed URLs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "title", "retryable"],
+      "properties": {
+        "type": { "type": "string", "format": "uri-reference" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "detail": { "type": "string", "maxLength": 4000 },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "output": { "type": "object", "properties": { "kind": { "const": "feed_snapshot" } } },
+          "result": { "const": "delivered" }
+        }
+      },
+      "then": { "required": ["feedSnapshot"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "output": { "type": "object", "properties": { "kind": { "const": "media_edge" } } },
+          "result": { "const": "delivered" }
+        }
+      },
+      "then": { "required": ["edge"] }
+    },
+    {
+      "if": { "properties": { "result": { "const": "failed" } } },
+      "then": { "required": ["error"] },
+      "else": { "not": { "required": ["error"] } }
+    },
+    {
+      "if": {
+        "properties": {
+          "output": { "type": "object", "properties": { "kind": { "const": "destination" } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "enum": ["submitted", "confirmed", "failed", "manual_required", "withdrawn"]
+          }
+        }
+      },
+      "else": { "properties": { "result": { "enum": ["delivered", "failed"] } } }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "checks": {
+      "description": "Named verification checks and whether each passed, for example guidPreserved, enclosureLengthMatches.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}

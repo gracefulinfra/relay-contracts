@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "89b0ca86-0b55-5338-ad07-e740d0ea3563",
+  "manifestId": "4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+  "manifestSha256": "593a2f0d50dbace61fc39b67edc9278ca0c4f0bb1c58c595b1af9d006b2be9c9",
+  "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+  "output": {
+    "kind": "website"
+  },
+  "result": "failed",
+  "attempt": 2,
+  "idempotencyKey": "website:4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+  "occurredAt": "2026-10-05T09:01:00Z",
+  "error": {
+    "type": "https://relay.test/problems/site-build-failed",
+    "title": "Site revalidation timed out",
+    "retryable": true
+  }
+}

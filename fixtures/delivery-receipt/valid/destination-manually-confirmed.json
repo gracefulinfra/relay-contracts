@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "f438baac-20d2-5021-989e-d97c256f2982",
+  "manifestId": "4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+  "manifestSha256": "593a2f0d50dbace61fc39b67edc9278ca0c4f0bb1c58c595b1af9d006b2be9c9",
+  "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+  "output": {
+    "kind": "destination",
+    "publicationTargetId": "98efa5bd-1e83-5a72-81ee-16dd0abca8a2",
+    "destinationKey": "rss_directory"
+  },
+  "result": "confirmed",
+  "attempt": 1,
+  "idempotencyKey": "98efa5bd-1e83-5a72-81ee-16dd0abca8a2:4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+  "occurredAt": "2026-10-06T10:00:00Z",
+  "external": {
+    "externalUrl": "https://directory.example/podcasts/signal-garden/tide-pools",
+    "confirmedBy": "0648876a-e536-5265-8574-3b739cb5b45b"
+  }
+}

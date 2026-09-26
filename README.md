@@ -9,7 +9,8 @@ workspace) and the architecture decisions in
 
 ## Status
 
-Bootstrapped by **P0-01**. This repo contains only the CI and tooling skeleton; there is no product code yet.
+Bootstrapped by **P0-01**. **P0-04** adds the domain model, the state machines, and the release-manifest and
+delivery-receipt schemas. The OpenAPI v0 document and generated clients follow in a second P0-04 PR.
 
 ## Quickstart
 
@@ -22,26 +23,27 @@ make test
 make lint
 ```
 
-| Target                   | What it does today                                                                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make test`              | Validates every fixture in `fixtures/<schema>/{valid,invalid}/` against `schemas/<schema>.schema.json`. Valid fixtures must pass and invalid ones must fail |
-| `make lint`              | Spectral lint of `openapi/*.yaml` (fails on warnings) and a Prettier check                                                                                  |
-| `make build`             | Pending: client generation arrives with P0-04                                                                                                               |
-| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                           |
+| Target                   | What it does today                                                                                                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `make test`              | Validates every fixture in `fixtures/<schema>/{valid,invalid}/` against `schemas/<schema>.schema.json` and its cross-field invariants. Valid fixtures must pass, and each invalid one must fail with the error named in `expected-failures.json` |
+| `make lint`              | Spectral lint of `openapi/*.yaml` (fails on warnings) and a Prettier check                                                                                                                                                                       |
+| `make build`             | Pending: client generation arrives with P0-04                                                                                                                                                                                                    |
+| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                                                                                                                |
 
-`openapi/openapi.yaml` and `schemas/bootstrap-smoke.schema.json` are bootstrap placeholders that exist so
-CI checks real files. P0-04 replaces them.
+`openapi/openapi.yaml` is still the bootstrap placeholder. The second P0-04 PR replaces it with `openapi/relay.v0.yaml`.
 
 ## Layout
 
-| Path                     | Contents                                                            |
-| ------------------------ | ------------------------------------------------------------------- |
-| `adr/`                   | Architecture decision records (MADR). Start from `0000-template.md` |
-| `openapi/`               | OpenAPI 3.1 documents                                               |
-| `schemas/`               | JSON Schemas (draft 2020-12) for events and manifests               |
-| `fixtures/`              | Valid and invalid examples for each schema                          |
-| `docs/version-matrix.md` | Pinned tool and platform versions for all repos, with sources       |
-| `docs/ci.md`             | CI conventions, image verification, and cross-repo access           |
+| Path                     | Contents                                                                   |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `adr/`                   | Architecture decision records (MADR). Start from `0000-template.md`        |
+| `model/`                 | Domain model (`erd.md`) and state machines (`state-machines.md`)           |
+| `openapi/`               | OpenAPI 3.1 documents                                                      |
+| `schemas/`               | JSON Schemas (draft 2020-12) for events and manifests                      |
+| `fixtures/`              | Valid and invalid examples for each schema, and why each invalid one fails |
+| `scripts/invariants/`    | Cross-field rules JSON Schema cannot express, one module per schema        |
+| `docs/version-matrix.md` | Pinned tool and platform versions for all repos, with sources              |
+| `docs/ci.md`             | CI conventions, image verification, and cross-repo access                  |
 
 ## CI
 

@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gracefulinfra/relay-contracts/schemas/release-manifest.schema.json",
+  "title": "Release manifest",
+  "description": "The immutable record of one episode release: exactly which approved inputs, asset versions, and public metadata were published. It never contains feed hashes or delivery results; those live in delivery receipts that reference this manifest (model/erd.md, ADR 0006). The manifest's own SHA-256 is computed over its RFC 8785 canonical JSON and stored alongside it, not inside it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifestId",
+    "sequence",
+    "kind",
+    "previousManifestId",
+    "network",
+    "show",
+    "episode",
+    "revision",
+    "access",
+    "originalPublishedAt",
+    "effectiveAt",
+    "scheduleGeneration",
+    "metadata",
+    "enclosure",
+    "assets",
+    "transcript",
+    "chapters",
+    "rights",
+    "approvals",
+    "createdAt",
+    "createdBy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Major.minor version of this schema. Minor versions only add optional fields.",
+      "const": "1.0"
+    },
+    "manifestId": { "$ref": "#/$defs/uuid" },
+    "sequence": {
+      "description": "1 for the first release of the episode, then +1 for each later manifest.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "kind": {
+      "description": "`release` for the first publish; `correction` for every later manifest, including a republish.",
+      "enum": ["release", "correction"]
+    },
+    "previousManifestId": {
+      "description": "The manifest this one replaces. Null only for the first release.",
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "slug": { "$ref": "#/$defs/slug" }
+      }
+    },
+    "show": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "podcastGuid", "slug"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "podcastGuid": {
+          "description": "The show's podcast:guid (ADR 0006).",
+          "$ref": "#/$defs/uuid"
+        },
+        "slug": {
+          "description": "The slug at release time. Informational only; slugs are mutable.",
+          "$ref": "#/$defs/slug"
+        }
+      }
+    },
+    "episode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "guid"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "guid": {
+          "description": "The permanent episode GUID. An opaque string: a UUIDv4 for native episodes, or the imported value byte for byte (ADR 0006). Identical in every manifest of the episode.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^\\S(.*\\S)?$"
+        }
+      }
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "number"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "number": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accessClass", "edition"],
+      "properties": {
+        "accessClass": {
+          "description": "Who may receive this release (decision A10): anonymous listeners, signed-in free accounts, or paid entitlements.",
+          "enum": ["public", "registered", "paid"]
+        },
+        "edition": {
+          "description": "Which edition of the episode this manifest releases. Each edition has its own manifests.",
+          "enum": ["standard", "ad_free", "bonus"]
+        },
+        "requiredEntitlement": {
+          "description": "The entitlement feature a paid release requires.",
+          "enum": ["ad_free", "private_feed", "bonus_content", "extras"]
+        }
+      },
+      "if": { "properties": { "accessClass": { "const": "paid" } } },
+      "then": { "required": ["requiredEntitlement"] },
+      "else": { "not": { "required": ["requiredEntitlement"] } }
+    },
+    "originalPublishedAt": {
+      "description": "The first release's publication time. Identical in every manifest of the episode; it is the feed pubDate forever.",
+      "$ref": "#/$defs/timestamp"
+    },
+    "effectiveAt": {
+      "description": "When this manifest became the current release. Equals originalPublishedAt for sequence 1.",
+      "$ref": "#/$defs/timestamp"
+    },
+    "scheduleGeneration": {
+      "description": "The episode's schedule generation when this manifest was created. A scheduled job whose generation differs never produces a manifest.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "enclosure": {
+      "description": "The explicitly selected enclosure. The URL and exact length are pinned; a correction that keeps the same asset version keeps the same URL (ADR 0006).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "url", "length", "mime"],
+      "properties": {
+        "assetId": { "$ref": "#/$defs/uuid" },
+        "url": { "$ref": "#/$defs/versionedMediaUrl" },
+        "length": { "type": "integer", "minimum": 1 },
+        "mime": { "$ref": "#/$defs/mime" }
+      }
+    },
+    "assets": {
+      "description": "Every media asset version this release makes public, including the enclosure. Each entry is one immutable version.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/asset" }
+    },
+    "transcript": {
+      "description": "The approved transcript revision, or null if the release has no transcript.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["revisionId", "source", "language", "approvalId", "assetIds"],
+          "properties": {
+            "revisionId": { "$ref": "#/$defs/uuid" },
+            "source": { "enum": ["whisper", "hosted", "manual"] },
+            "language": { "$ref": "#/$defs/language" },
+            "approvalId": { "$ref": "#/$defs/uuid" },
+            "assetIds": {
+              "description": "The rendered transcript and caption files. Each must also appear in `assets`.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/uuid" }
+            }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "chapters": {
+      "description": "The approved chapter set, or null.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chapterSetId", "version", "approvalId", "assetId"],
+          "properties": {
+            "chapterSetId": { "$ref": "#/$defs/uuid" },
+            "version": { "type": "integer", "minimum": 1 },
+            "approvalId": { "$ref": "#/$defs/uuid" },
+            "assetId": {
+              "description": "The rendered podcast:chapters JSON file. It must also appear in `assets`.",
+              "$ref": "#/$defs/uuid"
+            }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "rights": {
+      "description": "The cleared rights records this release relied on, pinned for export and takedown decisions.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rightsRecordId", "subject", "license", "attribution"],
+        "properties": {
+          "rightsRecordId": { "$ref": "#/$defs/uuid" },
+          "subject": { "enum": ["music", "guest_release", "image", "license"] },
+          "license": {
+            "description": "An SPDX or Creative Commons identifier (for example CC-BY-4.0), or `custom`.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "attribution": { "type": ["string", "null"], "maxLength": 2000 },
+          "expiresAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+        }
+      }
+    },
+    "approvals": {
+      "description": "Every approval this release depends on. Must include an approval of the episode revision.",
+      "type": "array",
+      "minItems": 1,
+      "contains": {
+        "type": "object",
+        "properties": { "subjectType": { "const": "episode_revision" } },
+        "required": ["subjectType"]
+      },
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["approvalId", "subjectType", "subjectId", "approverId", "approvedAt"],
+        "properties": {
+          "approvalId": { "$ref": "#/$defs/uuid" },
+          "subjectType": {
+            "enum": ["episode_revision", "transcript_revision", "chapter_set", "rights_record"]
+          },
+          "subjectId": { "$ref": "#/$defs/uuid" },
+          "approverId": {
+            "description": "The approving StaffUser. Only the ID is pinned, so no personal data is copied into the manifest.",
+            "$ref": "#/$defs/uuid"
+          },
+          "approvedAt": { "$ref": "#/$defs/timestamp" }
+        }
+      }
+    },
+    "adMarkers": {
+      "description": "Phase 3: ad slots pinned to exact rendition versions. Omit when there are none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["markerId", "assetId", "position", "offsetMs"],
+        "properties": {
+          "markerId": { "$ref": "#/$defs/uuid" },
+          "assetId": { "$ref": "#/$defs/uuid" },
+          "position": { "enum": ["pre", "mid", "post"] },
+          "offsetMs": { "type": "integer", "minimum": 0 },
+          "maxDurationMs": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "createdAt": { "$ref": "#/$defs/timestamp" },
+    "createdBy": {
+      "description": "Who triggered the release: a staff user (publish now) or the scheduler (a fired schedule).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorType", "actorId"],
+      "properties": {
+        "actorType": { "enum": ["staff", "system"] },
+        "actorId": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sequence": { "const": 1 } } },
+      "then": {
+        "properties": { "kind": { "const": "release" }, "previousManifestId": { "type": "null" } }
+      },
+      "else": {
+        "properties": {
+          "kind": { "const": "correction" },
+          "previousManifestId": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 100 },
+    "timestamp": {
+      "description": "RFC 3339 in UTC with a Z suffix.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "mime": {
+      "type": "string",
+      "pattern": "^[a-z]+/[a-z0-9][a-z0-9.+-]*(; ?[a-z-]+=[A-Za-z0-9.\"-]+)*$",
+      "maxLength": 255
+    },
+    "language": {
+      "description": "BCP 47 language tag.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"
+    },
+    "httpsUrl": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048 },
+    "versionedMediaUrl": {
+      "description": "A permanent, version-specific media URL: https://{media-host}/a/{assetId}/{fileName} (ADR 0006).",
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048,
+      "pattern": "^https://[^/]+(/[^/]+)*/a/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9._-]+$"
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "lineageId",
+        "version",
+        "role",
+        "format",
+        "edition",
+        "mime",
+        "bytes",
+        "sha256",
+        "url"
+      ],
+      "properties": {
+        "assetId": { "$ref": "#/$defs/uuid" },
+        "lineageId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "role": {
+          "description": "What the file is for. Masters are never released, so `master` is not allowed here.",
+          "enum": ["rendition", "caption", "thumbnail", "transcript", "chapters", "artwork"]
+        },
+        "format": {
+          "description": "How the file is encoded. Separate from role, so one schema covers audio, video, and premium editions.",
+          "enum": [
+            "mp3",
+            "aac_m4a",
+            "opus",
+            "hls_master",
+            "hls_media",
+            "mp4",
+            "webvtt",
+            "srt",
+            "podcast_json",
+            "podcast_chapters_json",
+            "text",
+            "jpeg",
+            "png",
+            "webp"
+          ]
+        },
+        "edition": { "enum": ["standard", "ad_free", "bonus"] },
+        "mime": { "$ref": "#/$defs/mime" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "url": { "$ref": "#/$defs/versionedMediaUrl" },
+        "sourceAssetId": {
+          "description": "The master (or other source) version this file was derived from.",
+          "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+        },
+        "durationMs": { "type": "integer", "minimum": 1 },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "bitrateKbps": { "type": "integer", "minimum": 1 },
+        "language": { "$ref": "#/$defs/language" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": { "enum": ["mp3", "aac_m4a", "opus", "hls_master", "hls_media", "mp4"] }
+            }
+          },
+          "then": { "required": ["durationMs"] }
+        },
+        {
+          "if": { "properties": { "role": { "enum": ["caption", "transcript"] } } },
+          "then": { "required": ["language"] }
+        },
+        {
+          "if": { "properties": { "role": { "enum": ["thumbnail", "artwork"] } } },
+          "then": { "required": ["width", "height"] }
+        }
+      ]
+    },
+    "person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["personId", "name", "role"],
+      "properties": {
+        "personId": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "role": { "enum": ["host", "guest", "producer", "other"] },
+        "href": { "$ref": "#/$defs/httpsUrl" },
+        "imageUrl": { "$ref": "#/$defs/httpsUrl" }
+      }
+    },
+    "metadata": {
+      "description": "The public metadata pinned at release time, enough to render the feed item and page without reading mutable catalog rows.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["episode", "show"],
+      "properties": {
+        "episode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "summary",
+            "notesHtml",
+            "notesSha256",
+            "episodeType",
+            "explicit",
+            "language",
+            "link",
+            "persons",
+            "topics"
+          ],
+          "properties": {
+            "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "subtitle": { "type": "string", "maxLength": 500 },
+            "summary": {
+              "description": "Plain-text summary.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "notesHtml": {
+              "description": "Show notes rendered from TipTap JSON and sanitized at release time (A15).",
+              "type": "string",
+              "maxLength": 200000
+            },
+            "notesSha256": {
+              "description": "SHA-256 of notesHtml as UTF-8.",
+              "$ref": "#/$defs/sha256"
+            },
+            "episodeType": { "enum": ["full", "trailer", "bonus"] },
+            "seasonNumber": { "type": "integer", "minimum": 1 },
+            "episodeNumber": { "type": "integer", "minimum": 1 },
+            "explicit": { "type": "boolean" },
+            "language": { "$ref": "#/$defs/language" },
+            "link": {
+              "description": "The episode page URL on the network site.",
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "imageAssetId": {
+              "description": "Episode artwork; must also appear in `assets`. Omit to use show artwork.",
+              "$ref": "#/$defs/uuid"
+            },
+            "persons": { "type": "array", "items": { "$ref": "#/$defs/person" } },
+            "topics": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/slug" }
+            }
+          }
+        },
+        "show": {
+          "description": "The show-level metadata this release was published under.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "author",
+            "language",
+            "explicit",
+            "categories",
+            "link",
+            "feedUrl",
+            "imageUrl"
+          ],
+          "properties": {
+            "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "author": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "language": { "$ref": "#/$defs/language" },
+            "explicit": { "type": "boolean" },
+            "categories": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "subcategory": { "type": "string", "minLength": 1, "maxLength": 100 }
+                }
+              }
+            },
+            "link": { "$ref": "#/$defs/httpsUrl" },
+            "feedUrl": { "$ref": "#/$defs/httpsUrl" },
+            "imageUrl": { "$ref": "#/$defs/httpsUrl" },
+            "copyright": { "type": "string", "maxLength": 1000 }
+          }
+        }
+      }
+    }
+  }
+}
