@@ -1,0 +1,137 @@
+# Castopod evaluation (P0-02)
+
+**Status:** complete · **Prompt:** [P0-02](../../prompts/phase-0/P0-02-castopod-evaluation.md) · **Date:** 2026-09-26 · **Time box:** 3 working days (used ~1)
+
+## Summary / recommendation
+
+**Recommendation: borrow ideas, build custom. Do not adopt Castopod as Relay's hosting/community core, and do not fork it.**
+
+Castopod is a genuinely capable, actively maintained, single-tenant podcast host. Run hands-on, it does the *creator* workflow well — multi-show, per-show roles, upload → transcript/chapters → schedule → publish, a broad podcast-namespace RSS feed, ActivityPub-native comments, and privacy-respecting IAB-style analytics. As a reference for feature scope and RSS correctness it is excellent, and Relay should copy several of its concrete choices (see [Borrow list](#what-to-borrow)).
+
+But its architecture is the opposite of what the Relay pitch makes non-negotiable, and closing that gap means changing the parts of Castopod that define it:
+
+- **Media delivery requires the app.** Every enclosure is a PHP route (`/audio/...`) that records an analytics hit and then 302/307-redirects to the file. When the PHP app is down, feeds still can't hand out working media links. This directly violates architecture rule 2 ("public media delivery … must keep working when the API is down") — the single most load-bearing decision in the pitch. See [W-DELIVERY](#evidence-index).
+- **No release manifest / approval model.** Publishing is immediate or time-scheduled; there is no "AI output is a draft → human approves" gate and no immutable release manifest. Relay's editorial model (P1-09) has no equivalent in Castopod. See conventions rules 5–6.
+- **Delivery files are not versioned or immutable.** Replacing an episode's audio overwrites the same stored object in place (same `cp_media` row, same file key, new bytes). This violates rule 5 ("masters are immutable; replacement is an explicit new version"). See [W-CORR-AUDIO](#evidence-index).
+- **No first-class export.** There is no "get all my data and media out" feature — only a raw MariaDB dump plus a media-tree/bucket copy. Relay requires a documented, versioned, GUID-preserving export (conventions "Full export", P1-20).
+- **Wrong storage/runtime shape for the target platform.** PHP/FrankenPHP monolith, file-based sessions by default (no horizontal scale without shared sessions), MariaDB (Relay standardises on PostgreSQL + CloudNativePG + River in the *same* Postgres), and an S3 integration that assumes public-read objects served straight from the storage endpoint (breaks on SeaweedFS without an explicit anonymous-read identity — see [W-S3](#evidence-index)).
+
+These are not workflow-gap nitpicks; they are the four load-bearing Relay decisions (offline media/feeds, immutable versioned masters, approval-gated release manifests, provider-portable Postgres/River stack). A fork that fixes all four is a rewrite of Castopod's core in a language and datastore Relay isn't using. The build-vs-buy math therefore favours **build**, while explicitly reusing Castopod's feed/analytics/namespace knowledge.
+
+Two findings also make Castopod unsuitable to run as-is even for a demo without changes: **premium/private media is world-readable** ([W-PREMIUM](#evidence-index)) and **download counts are trivially inflatable via `X-Forwarded-For`** ([W-ANALYTICS](#evidence-index)). Both are noted here as things Relay must get right, not as blockers to the evaluation.
+
+## What was run
+
+| Item | Value |
+| --- | --- |
+| Image | `castopod/castopod:1.15.5` |
+| Image digest | `sha256:4e4f0440520f45257bfeac7be4347defd20048b4efef8f53d73ec9ed3a4f7966` (also tags `1`, `latest`; released 2026-02-24) |
+| App / framework | Castopod 1.15.5 on CodeIgniter 4.6.5, PHP 8.4.18 (ZTS), FrankenPHP + Caddy |
+| Database | MariaDB 12.1 (`sha256:e487701b…`) |
+| Cache | Redis 8.4-alpine (`sha256:0514fa59…`) |
+| Object storage (2nd instance) | SeaweedFS 4.47 (`sha256:ce9e796f…`), S3 gateway |
+| Mail (test only) | Mailpit v1.27 to catch invite/magic-link mail |
+| Setup | Two Compose stacks: default (local-disk media) on :8080, S3-backed on :8081. Digest-pinned images; generated secrets in gitignored `.env`; `CP_DISABLE_HTTPS=1` (documented testing switch). Full compose in [`castopod/compose.reference.yml`](castopod/compose.reference.yml). |
+| Test data | Fictional shows *Signal Garden* and *Night Shift Radio*; CC BY-SA 4.0 feed (Hacker Public Radio) for import; a trimmed local fixture feed with namespace tags + a 301 redirect for redirect testing. |
+
+Castopod v2 (pre-release `v2-next.3`) was **not run**; its plugin system was desk-reviewed from docs and the shipped module source (see [v2 / extensibility](#extensibility-v2-plugin-api)). Federation was tested locally (endpoints + local comments) but **not** across two live instances over the public internet (per agreed scope).
+
+## Scored workflow matrix
+
+Scores: **Meets** / **Partial** / **Missing** / **N/A** — measured against the *Relay pitch*, not against "is this a good podcast host" (Castopod is). Evidence IDs point to the [evidence index](#evidence-index); screenshots live in [`castopod/`](castopod/).
+
+| # | Workflow | Score | Evidence | Notes |
+| --- | --- | --- | --- | --- |
+| 1 | Multi-show network, roles, show-scoped permissions | **Meets** | `07`,`08`,`09`, W-RBAC | Instance roles (superadmin/manager/podcaster) + per-show contributor roles (admin/editor/author/guest). Contributors are scoped to one show; editor/author on *Signal Garden* get **403** on *Night Shift Radio*, on `/users`, and on contributor management. Roles are real and enforced by a permission filter. |
+| 2 | Upload → processing → transcript/chapters → schedule → publish | **Partial** | `11`,`12`,`14`,`15`, W-SCHED | Full happy path works: audio upload, manual transcript (`.vtt`/`.srt`) and chapters (`.json`) upload, time-scheduled publish fires on time (verified episode appeared at its scheduled minute). **But:** no processing pipeline beyond ID3/duration probing; **no approval/draft-gate step**; scheduling is publish-time only, no release manifest. AI transcript *generation* is not built in (upload/URL only). |
+| 3 | Corrections: edit published episode, GUID preserved, media replacement | **Partial** | `20`,`22`, W-CORR-GUID, W-CORR-AUDIO | GUID is **preserved** across metadata + slug edits (stored, not derived — good). **However:** (a) changing the slug changes the enclosure URL and episode URL with **no redirect** from the old paths (old URL → 404); (b) replacing audio **overwrites the master in place** (same file key, no new version, no checksum history). Violates Relay rule 5 (immutable versioned masters). |
+| 4 | Import existing feed; GUID preservation + redirect support | **Partial** | `23`,`26`, W-IMPORT | Imported a CC feed: episode GUIDs preserved exactly; channel `podcast:guid` preserved. Import is idempotent by GUID and refuses re-import under a different handle. **Gaps:** namespace tags on items are **dropped** on import (transcript/chapters/season/episode not carried over — only person partially); a failed import leaves a **half-created podcast** with no rollback; **no 301 redirect** is set up from old→new feed (the pitch's migration requirement). Also see W-IMPORT-PHP. |
+| 5 | RSS namespace coverage (transcript, chapters, person, locked, alternateEnclosure) | **Partial** | W-RSS | Generated feed includes `podcast:guid`, `transcript`, `chapters`, `person`, `locked`, `season`, `episode`, `txt`, `soundbite`, `trailer`, `socialInteract`, plus value/valueRecipient. **`podcast:alternateEnclosure` is not emitted** (no video/alt-format), and there's no `medium` beyond podcast. Namespace breadth is strong; alt-enclosure — needed for Relay's video story — is absent. |
+| 6 | Comments and moderation (incl. federation) | **Partial** | `34`,`35`, W-AP | Comments are **ActivityPub-native** (WebFinger, actor, inbox/outbox/followers all resolve; comments have UUIDs, likes, replies, CORS preflight). Staff moderate via create/reply/**delete** on the episode admin page under an `episodes.manage-comments` permission, plus a fediverse blocked-actors list. **No moderation queue, reporting/flagging, or appeals workflow** (Relay P2-07). Cross-instance federation not tested live. |
+| 7 | Analytics: what's measured, IAB alignment | **Partial** | `31`, W-ANALYTICS | Measures downloads (daily/monthly), unique listeners, listening time, players/apps, devices/OS, locations, web visits. Code self-documents **IAB v2.0 (2017)**: >1-minute byte threshold, 2-byte (`bytes=0-1`) Apple probe ignored, IP+UA dedupe within the day, bot deny-list + user-agent filtering, **no IP stored** (salted sha1, aggregates only) — privacy model is good. **Gaps vs Relay:** targets IAB **v2.0**, not the v2.2 baseline in [DECISIONS](../../prompts/02-DECISIONS.md); dedupe window is **calendar-day, not rolling 24h**; and download count is **trivially inflatable** — 20 requests with spoofed `X-Forwarded-For` produced 20 "downloads" (no trusted-proxy validation on the analytics client-IP). |
+| 8 | Premium/private feeds and sponsor records | **Partial / at-risk** | `16`,`18`, W-PREMIUM | Premium episodes + tokenised private subscriber feeds exist; suspending a subscription revokes the feed token and the tokenised enclosure (→ 401). **Critical flaw:** the tokenised enclosure only gates the *redirect*; it 302s to a **public, guessable, unsigned** media URL that anyone can fetch with no token, and that URL **stays live after the subscription is suspended**. Premium audio is effectively public. No sponsor/campaign records at all. |
+| 9 | Video support | **Missing** | W-VIDEO | Episode audio accepts **`.mp3`/`.m4a` only**; uploading `.mp4` is rejected ("does not have a valid file extension"). No video renditions, no HLS, no `alternateEnclosure`. Relay's video pipeline (P2-01/02) has no basis here. |
+| 10 | S3 storage + Kubernetes fit (Helm? stateless? PHP runtime) | **Partial** | W-S3 | S3 works: covers + audio land in SeaweedFS via the S3 API. **But** Castopod points public media/cover URLs **straight at the storage endpoint** and relies on a **`public-read` ACL that SeaweedFS ignores** — anonymous GET returned **403** until an explicit anonymous-read identity was configured on the gateway. K8s fit is poor: **no official Helm chart**, PHP/FrankenPHP monolith, **file-based sessions by default** (no horizontal scale without shared session storage), and a MariaDB dependency Relay doesn't use. |
+| 11 | Export: get *all* data and media out | **Missing** | W-EXPORT | No export feature or CLI command. The only path is a raw `mariadb-dump` (~2,200 lines here) plus copying the 147 MB media tree / S3 bucket by hand. No versioned, documented, GUID-anchored export as Relay requires (P1-20). |
+
+## Data model, extensibility, operations, licensing
+
+### Data model — maps *partially* to Relay's
+
+Castopod: **Instance → Podcast → Episode**, with Persons (contributors/guests) and per-podcast Seasons as a numeric attribute on episodes.
+
+- **Network → Show → Season → Episode:** Castopod has Podcast (=Show) and Episode, and season is an integer field, **not** a first-class entity. There is **no Network** layer above Podcast (the instance is the top) and **no release manifest**. So the mapping is Show/Episode ✅, Season ~ (attribute only), Network ✗, release manifest ✗.
+- Episode **GUIDs are stored, immutable, and not derived from mutable fields** — matches Relay rule 4. Good and worth confirming as a shared principle.
+- **Masters are mutable** (rule 5 ✗, see W-CORR-AUDIO). No checksum/version chain on media.
+
+### Extensibility (v2 plugin API) — desk review only
+
+v2 is pre-release (`v2-next.3`); reviewed from docs + shipped modules, **not run**. Plugins are PHP with a `manifest.json`; extension points include custom RSS channel/item tags (XML editor field), custom `<head>` tags, podcast/episode metadata (image, license, medium), and show-notes signatures. Twelve official plugins exist (seven extracted from core: custom-rss, op3, owner-email-remover, podcast-episode-season, podcast-medium, podcast-txt, show-notes-signature; five new: custom-head, podcast-block, podcast-images, podcast-license, podcast-podroll). **Relevance to Relay:** the plugin surface is oriented at *feed/metadata* extension, not at swapping delivery, storage, identity, or the datastore — so it does not help with Relay's portability requirements. Useful as a catalogue of "namespace tags that matter in practice."
+
+### Operations
+
+- **Stack:** FrankenPHP+Caddy monolith, MariaDB, Redis, media on disk or S3. Cron via supercronic runs `podcast:import`, `websub-publish`, `fediverse-broadcast`, video-clip generation, and hourly `episodes:compute-downloads`.
+- **Scaling:** default **file sessions** ⇒ not horizontally scalable without switching session storage; media-through-PHP means the app is on the hot path for every download.
+- **Backups:** DB dump + media/bucket copy; no built-in backup/restore tooling.
+- **Secrets:** the official image **prints DB password, Redis password, S3 secret, and the analytics salt to stdout on every start** (W-SECRETS) — noisy and a real leak risk in shared logging.
+
+### AGPL-3.0 obligations (plain language)
+
+Castopod is **AGPL-3.0**. In plain terms: AGPL is copyleft that also triggers on *network use*. If Relay were to **modify** Castopod and let users interact with it **over a network** (which hosting inherently does), Relay would have to **offer those users the complete corresponding source of the modified version**, under AGPL-3.0. Running it **unmodified** to host podcasts is fine and creates no obligation to publish anything. **Borrowing ideas/design** (reading it, copying an approach, re-implementing in Go) is not a derivative work and carries no AGPL obligation. **Copying its code** into `relay-api` *would* make Relay's server a derivative and force the whole thing to AGPL — which we do not want for a portfolio codebase. **Net:** *use-as-is* = safe but wrong shape; *fork/modify-and-host* = AGPL applies to our changes; *borrow ideas* = clean. This reinforces the recommendation.
+
+## What to borrow
+
+Concrete things to copy into Relay (ideas, not code):
+
+1. **Analytics model:** salted-hash dedupe with **no raw IP stored**, >1-min byte threshold, ignore `bytes=0-1`, bot deny-list + UA filtering — but target **IAB v2.2**, use a **rolling 24h** window, and **validate the client IP against trusted proxies** (Castopod's miss).
+2. **RSS namespace coverage** as a checklist: `guid`, `transcript`, `chapters`, `person`, `locked`, `season`/`episode`, `txt`, `soundbite`, `socialInteract`, value/valueRecipient — plus the `alternateEnclosure` Castopod lacks.
+3. **Stored, immutable episode GUIDs** not derived from mutable fields (they got this right).
+4. **ActivityPub-native comments** shape (actor/inbox/outbox, comment UUIDs, likes/replies) as a reference for P2-06/P2-07 — but add the queue/report/appeal layer Castopod omits.
+5. **Import idempotency by GUID** — but add rollback on failure, item-level namespace preservation, and 301 old→new redirects.
+
+## Gaps that justify the custom build
+
+Ranked by how central they are to the Relay pitch:
+
+1. **Offline media & feed delivery (rule 2):** Castopod puts PHP on the media hot path; Relay renders feeds to object storage and serves media from the edge. Fundamental, unfixable without gutting Castopod.
+2. **Immutable, versioned, checksummed masters (rule 5):** Castopod overwrites in place.
+3. **Approval-gated release with release manifests (rules 5–6, P1-09):** absent.
+4. **Provider-portable stack (rule 1, A5/A6/A7/A14):** PHP+MariaDB+file-sessions vs Go+Postgres+River+S3-edge. Different foundations.
+5. **First-class versioned export (P1-20):** absent.
+6. **Video / alternateEnclosure (P2-01):** absent.
+7. **Metric families kept separate (rule 7) and sponsor/DAI/billing (Phase 3):** not modelled.
+
+Any one of 1–4 alone would force a fork deep enough to be a rewrite. Together they make "build, and borrow Castopod's feed/analytics knowledge" the clear call.
+
+## Open questions / unverified
+
+- v2 plugin API and v2 media/fediverse refactor were **desk-reviewed, not run**; re-evaluate when v2 is stable if plugin extensibility ever becomes relevant.
+- Live cross-instance ActivityPub federation (following from a real Mastodon account, inbox delivery) was **not** tested — only local endpoints and local comments.
+- IAB alignment was read from source + self-documentation, not from a certification test (Castopod claims v2.0; never claim certification for Relay either).
+- SeaweedFS `public-read` behaviour was verified on 4.47 with the default identity config; other S3 backends may honour the ACL differently.
+
+## Evidence index
+
+Screenshots in [`castopod/`](castopod/). Behavioural findings (W-*) were verified by direct HTTP/DB probes against the running instances.
+
+| ID | Finding | How verified |
+| --- | --- | --- |
+| W-RBAC | Per-show role isolation; cross-show/admin access denied (403) | Logged in as editor/author; `GET` on other show, `/users`, contributors → 403 (`09`) |
+| W-SCHED | Scheduled publish fires at the scheduled minute | Scheduled +3 min; feed item count 0 → 1 exactly at the scheduled UTC minute (`15`) |
+| W-CORR-GUID | GUID preserved across metadata + slug edit | DB `cp_episodes.guid` unchanged after edit; feed GUID identical (`20`) |
+| W-CORR-AUDIO | Audio replacement overwrites master in place, no version/redirect | Same `cp_media` row/file key, new size/mtime; old enclosure & episode URL → 404, no redirect (`22`) |
+| W-DELIVERY | Media served through PHP route that redirects to the file | `/audio/...` → 307/302 to `/media/...`; app on hot path for every download |
+| W-IMPORT | GUIDs preserved; item namespace tags dropped; no rollback; no redirect | Compared source vs imported feeds; failed import left half-created podcast (`26`) |
+| W-IMPORT-PHP | Imported audio stored with `.php` extension, then blocked by the app's own security rule | Imported media object → **500**; Caddy rule blocks `/storage/*.php`; files on disk end `.php` |
+| W-RSS | Namespace coverage incl. transcript/chapters/person/locked; no alternateEnclosure | Parsed generated feed for `podcast:*` tags |
+| W-AP | ActivityPub actor/outbox/followers/webfinger resolve | `GET` with `Accept: application/activity+json` → 200 actor JSON |
+| W-ANALYTICS | Download count inflatable via spoofed `X-Forwarded-For`; day-window dedupe | 20 spoofed-XFF requests → +20 downloads in `cp_analytics_podcasts_by_episode` |
+| W-PREMIUM | Premium enclosure redirects to public unsigned URL; stays live after suspend | Tokenised enclosure → 302 to `/media/...`; that URL returns 200 anonymously, before and after suspension |
+| W-S3 | S3 media/covers 403 anonymously (public-read ACL ignored by SeaweedFS) | Anonymous GET on stored cover/audio → 403 until anon-read identity added → 200 |
+| W-VIDEO | Video rejected; audio-only | `.mp4` upload → "does not have a valid file extension" |
+| W-EXPORT | No export feature; only raw DB dump + media copy | `spark list` has no export/backup command; `mariadb-dump` ~2,200 lines |
+| W-SECRETS | DB/Redis/S3 secrets + analytics salt printed to stdout on start | Grepped container startup logs; all four secret values present |
+
+## Reproduction
+
+Compose files, generated fixtures, and the Playwright capture scripts used for this evaluation are not committed (they contain generated local secrets and large media). The pinned image digests in [What was run](#what-was-run) plus [`castopod/compose.reference.yml`](castopod/compose.reference.yml) (secret values redacted) are enough to reproduce the setup.
