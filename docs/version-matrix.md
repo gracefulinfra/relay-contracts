@@ -50,19 +50,40 @@ continuous monitoring; Renovate proposes updates weekly.
 
 SHAs were resolved with `gh api repos/<action>/commits/<tag>` from each project's latest GitHub release.
 
+## Platform components (pinned by P0-05)
+
+Verified on 2026-09-26 against each project's GitHub releases and its Helm repository index. The Helm chart
+version is what `relay-infra` pins (in `platform/<service>/application.yaml`). The app version is the one
+that chart ships.
+
+| Component                          | Chart (repo)                                            | App version                                                                                  | Source                                                                                                          | Verified   |
+| ---------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------- |
+| k3s (via k3d 5.9.0)                | —                                                       | v1.36.4-k3s1 (`sha256:edad48e1…b83657`)                                                      | <https://hub.docker.com/r/rancher/k3s/tags>                                                                     | 2026-09-26 |
+| k3d                                | —                                                       | 5.9.0                                                                                        | <https://github.com/k3d-io/k3d/releases>                                                                        | 2026-09-26 |
+| Argo CD                            | argo-cd 10.9.2 (argoproj.github.io/argo-helm)           | v3.5.3                                                                                       | <https://github.com/argoproj/argo-cd/releases>                                                                  | 2026-09-26 |
+| Envoy Gateway (+ Gateway API CRDs) | gateway-helm 1.9.1 (oci://docker.io/envoyproxy)         | v1.9.1                                                                                       | <https://github.com/envoyproxy/gateway/releases>. **Overrides the 1.8.x baseline**: 1.9 is the current minor    | 2026-09-26 |
+| cert-manager                       | cert-manager v1.21.2 (charts.jetstack.io)               | v1.21.2                                                                                      | <https://github.com/cert-manager/cert-manager/releases>                                                         | 2026-09-26 |
+| External Secrets Operator          | external-secrets 2.11.0 (charts.external-secrets.io)    | v2.11.0                                                                                      | <https://github.com/external-secrets/external-secrets/releases> (ADR-0007)                                      | 2026-09-26 |
+| CloudNativePG                      | cloudnative-pg 0.29.1 (cloudnative-pg.github.io/charts) | 1.30.1                                                                                       | <https://github.com/cloudnative-pg/cloudnative-pg/releases>                                                     | 2026-09-26 |
+| PostgreSQL (CNPG operand image)    | —                                                       | 17.11 (`ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie`, `sha256:09892aae…8fba3dc`) | `docker buildx imagetools inspect` (latest 17.x; same digest as the `17-standard-trixie` tag)                   | 2026-09-27 |
+| CNPG barman-cloud plugin           | plugin-barman-cloud 0.8.0                               | v0.15.0                                                                                      | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>                                                | 2026-09-26 |
+| SeaweedFS                          | seaweedfs 4.47.0 (seaweedfs.github.io/seaweedfs/helm)   | 4.47                                                                                         | <https://github.com/seaweedfs/seaweedfs/releases>                                                               | 2026-09-26 |
+| Keycloak                           | — (plain manifests)                                     | 26.7.4                                                                                       | <https://github.com/keycloak/keycloak/releases> (26.7.4 released 2026-09-16; this verifies the 26.7.x baseline) | 2026-09-26 |
+| Argo Workflows                     | argo-workflows 2.0.8 (argo-helm)                        | v4.1.4                                                                                       | <https://github.com/argoproj/argo-workflows/releases>                                                           | 2026-09-26 |
+| kube-prometheus-stack              | kube-prometheus-stack 91.7.0 (prometheus-community)     | operator v0.94.1                                                                             | <https://github.com/prometheus-community/helm-charts/releases>                                                  | 2026-09-26 |
+| OpenTelemetry Collector            | opentelemetry-collector 0.173.1 (open-telemetry)        | 0.160.0                                                                                      | <https://github.com/open-telemetry/opentelemetry-helm-charts/releases>                                          | 2026-09-26 |
+| yq / shellcheck                    | —                                                       | 4.53.6 / 0.11.0                                                                              | GitHub releases                                                                                                 | 2026-09-26 |
+
+P0-05 PR2 and PR3 add the rows they deploy here in the same PR: Tempo and Grafana.
+
 ## Platform components (not yet pinned)
 
 These are the `01-CONVENTIONS.md` baselines. They are **unverified** until the prompt that deploys them
 checks the official release documentation and adds a row above.
 
-| Component                              | Baseline                               | Pinned by    |
-| -------------------------------------- | -------------------------------------- | ------------ |
-| PostgreSQL / CloudNativePG             | 17 / 1.30.x                            | P0-05        |
-| Argo CD, Argo Workflows                | — / 4.1.x                              | P0-05, P1-05 |
-| Envoy Gateway, cert-manager            | 1.8.x / —                              | P0-05        |
-| SeaweedFS                              | —                                      | P0-05        |
-| Keycloak                               | 26.7.x (unverified; see decisions log) | P1-02        |
-| River, sqlc, goose, pgx                | — / 1.31.x / — / v5                    | P1-01        |
-| Astro                                  | 6                                      | P1-14        |
-| React, Vite, TanStack Router and Query | —                                      | P1-12        |
-| faster-whisper                         | —                                      | P1-07        |
+| Component                              | Baseline            | Pinned by |
+| -------------------------------------- | ------------------- | --------- |
+| River, sqlc, goose, pgx                | — / 1.31.x / — / v5 | P1-01     |
+| Astro                                  | 6                   | P1-14     |
+| React, Vite, TanStack Router and Query | —                   | P1-12     |
+| faster-whisper                         | —                   | P1-07     |
