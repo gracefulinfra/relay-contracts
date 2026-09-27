@@ -47,6 +47,7 @@ continuous monitoring; Renovate proposes updates weekly.
 | sigstore/cosign-installer     | v4.1.2  | `6f9f17788090df1f26f669e9d70d6ae9567deba6` | 2026-05-07 |
 | anchore/sbom-action           | v0.24.2 | `3ad7283483fc7af8ff2b4ea19663c2d5ca935e26` | 2026-08-28 |
 | azure/setup-helm              | v5.0.1  | `9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310` | 2026-06-23 |
+| actions/upload-artifact       | v7.0.1  | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | 2026-04-10 |
 
 SHAs were resolved with `gh api repos/<action>/commits/<tag>` from each project's latest GitHub release.
 
@@ -73,6 +74,18 @@ that chart ships.
 | kube-prometheus-stack              | kube-prometheus-stack 91.7.0 (prometheus-community)     | operator v0.94.1                                                                             | <https://github.com/prometheus-community/helm-charts/releases>                                                  | 2026-09-26 |
 | OpenTelemetry Collector            | opentelemetry-collector 0.173.1 (open-telemetry)        | 0.160.0                                                                                      | <https://github.com/open-telemetry/opentelemetry-helm-charts/releases>                                          | 2026-09-26 |
 | yq / shellcheck                    | —                                                       | 4.53.6 / 0.11.0                                                                              | GitHub releases                                                                                                 | 2026-09-26 |
+
+## S3 conformance suite (pinned by P0-06)
+
+`relay-infra/conformance/s3` and `make conformance-s3`. Verified on 2026-09-27.
+
+| Component                                                                     | Pinned                                                                                | Where                                       | Source                                                                                                          | Verified   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------- |
+| AWS SDK for Go v2 (`aws-sdk-go-v2` / `config` / `credentials` / `service/s3`) | v1.47.1 / v1.33.6 / v1.20.6 / v1.113.4                                                | `relay-infra/go.mod`                        | `go list -m -json <module>@latest` (all released 2026-09-24)                                                    | 2026-09-27 |
+| smithy-go                                                                     | v1.28.2                                                                               | `relay-infra/go.mod`                        | `go list -m -json github.com/aws/smithy-go@latest`                                                              | 2026-09-27 |
+| SeaweedFS image (CI target)                                                   | `docker.io/chrislusf/seaweedfs:4.47` (`sha256:ce9e796f…6bfa6bf882`, multi-arch index) | `relay-infra/Makefile` `SEAWEEDFS_IMAGE`    | `docker buildx imagetools inspect`; must equal the chart's app version (checked by `scripts/s3-conformance.sh`) | 2026-09-27 |
+| golangci-lint in `relay-infra`                                                | 2.14.0                                                                                | `relay-infra/Makefile`, CI (`install-only`) | Same as the Go repos row above                                                                                  | 2026-09-27 |
+| govulncheck in `relay-infra`                                                  | 1.8.0                                                                                 | `relay-infra/go.mod` tool directive         | Same as the Go repos row above                                                                                  | 2026-09-27 |
 
 P0-05 PR2 and PR3 add the rows they deploy here in the same PR: Tempo and Grafana.
 
