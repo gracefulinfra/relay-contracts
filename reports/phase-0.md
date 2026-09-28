@@ -187,9 +187,51 @@ column says where the mitigation is implemented and checked.
 | 2. P0-05 PR 3 | relay-infra#7, merged at `58edcf8`: observability at about 690 Mi; CI `e2e` (fresh runner, `make up` and `make smoke`) green; pins in relay-contracts#11 and this PR                                                                       |
 | 3. P0-06 pins | relay-contracts#7, merged at `8619d79`                                                                                                                                                                                                     |
 
+### Completion audit (2026-09-28)
+
+A final audit re-checked every Phase 0 prompt's acceptance criteria and implementation clarifications
+against `main`, and ran the CI jobs that had never run:
+
+- **P0-04: released.** `v0.1.0` (owner-approved, signed tag at `c12b6e2`) published
+  `@gracefulinfra/relay-client` 0.1.0 to GitHub Packages, tagged `gen/go/v0.1.0`, and created the
+  [GitHub release](https://github.com/gracefulinfra/relay-contracts/releases/tag/v0.1.0) with the
+  bundled spec, the client package, and the Go stub. `go get …/gen/go@v0.1.0` resolves, and its
+  embedded spec reports 0.1.0 with 72 paths.
+- **P0-05: the missing measurements added** (relay-infra#8). Laptop CPU at rest is about 670m of 10
+  cores. Disk is about 8.8 GB of images and 560 MB of volume data (20 Gi claimed). The cached start is
+  1m 29s. The owner also asked for a lighter local setup: a Docker Compose dev stack now runs alongside
+  k3d ([ADR 0009](../adr/0009-compose-dev-stack.md)). It uses about 0.7 GiB (1.2 GiB with telemetry),
+  starts in about 15 s, and has 18 smoke checks in CI.
+- **P0-07: the rehearsal now passes on a clean Linux runner**
+  ([run 36490590669](https://github.com/gracefulinfra/relay-infra/actions/runs/36490590669)). The
+  `portability` workflow had never run, and it exposed three Linux-only defects that Docker Desktop
+  on the Mac, or a bash quirk, had hidden. relay-infra#8, #9, and #10 fixed them:
+  - SeaweedFS could not read mode-600 bind-mounted secrets.
+  - The Docker network had no gateway, and the steps swallowed errors.
+  - curl 8.5 mis-signed a raw `=` in an S3 list query.
+
+  The CI result:
+
+  |                                            | CI rehearsal (Linux, 2026-09-28)                                                                                                       | Local rehearsal (macOS, 2026-09-27) |
+  | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+  | Export                                     | 2m 55s                                                                                                                                 | 2m 35s                              |
+  | Restore, including a cold GitOps bootstrap | 7m 33s                                                                                                                                 | 6m 05s                              |
+  | Verify                                     | 1m 19s                                                                                                                                 | 39s                                 |
+  | Bytes copied                               | 1,040.7 MiB                                                                                                                            | about 1 GiB                         |
+  | Manual steps                               | **0**                                                                                                                                  | 0                                   |
+  | Application-source changes                 | **0**                                                                                                                                  | 0                                   |
+  | Integrity                                  | 64 media, 4 feed, and 15 backup objects with matching SHA-256; 10,000 rows with the source digest; S3 conformance on the target passed | Same checks, passed                 |
+
+  It is still a **local restore rehearsal** (ADR 0008), not provider portability.
+
+**CI is green on `main` in all six repos**; relay-infra `3cd694d` passes `validate`, `s3-conformance`,
+`dev-stack`, and `e2e`.
+
+**Phase 0 is complete.**
+
 Carried into Phase 1:
 
-- **The `v0.1.0` contracts release awaits owner approval.** `release.yml` publishes the npm client and
-  tags `gen/go/v0.1.0`. P1-01 (Go stub) and P1-12 (TS client) consume it, and the tagged release has not
-  run yet.
+- Develop against the dev stack (`make dev`). Demos and acceptance evidence use k3d (`make up`).
+- Phase 0 follow-ups are in relay-infra and relay-contracts `docs/follow-ups.md`, each with an owning
+  prompt (mostly P1-02, P1-18, and P1-19).
 - The tripwire date is unchanged: P1-01 to P1-11 merged by about 2027-01-18.
