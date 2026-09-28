@@ -14,7 +14,7 @@ deps: node_modules/.modules.yaml ## Install dependencies from the lockfile
 dev: ## Nothing to run locally
 	@echo "SKIPPED: relay-contracts has no dev server."
 
-test: deps ## Validate every JSON fixture against its schema (valid must pass, invalid must fail)
+test: deps ## Validate fixtures against schemas, and check the cost model (5.76 TB example, outputs up to date)
 	pnpm test
 
 lint: deps ## Spectral lint of OpenAPI (fails on warnings) and a Prettier check
