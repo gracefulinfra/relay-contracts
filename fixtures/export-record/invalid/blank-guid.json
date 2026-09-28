@@ -1,0 +1,17 @@
+{
+  "recordType": "episode",
+  "data": {
+    "id": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+    "showId": "b3574351-38e3-5000-9fb9-3083dfe3714f",
+    "seasonId": null,
+    "guid": " legacy-42",
+    "guidOrigin": "imported",
+    "publicationStatus": "published",
+    "deleted": false,
+    "currentManifestId": "4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+    "originalPublishedAt": "2019-04-12T08:00:00Z",
+    "scheduleGeneration": 0,
+    "topicIds": [],
+    "createdAt": "2026-10-15T09:00:00Z"
+  }
+}

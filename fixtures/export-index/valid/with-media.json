@@ -1,0 +1,155 @@
+{
+  "exportFormatVersion": "1.0",
+  "exportId": "7e2a4d3b-9c5f-4a2b-8d4e-3f6a8b9c0d1e",
+  "network": {
+    "id": "9e3bdf6e-d535-5b73-980a-b83006adb65d",
+    "slug": "relay-demo"
+  },
+  "createdAt": "2026-11-02T10:15:00Z",
+  "createdBy": "0648876a-e536-5265-8574-3b739cb5b45b",
+  "source": {
+    "relayApiVersion": "3f2c1ab",
+    "contractsVersion": "v0.1.0"
+  },
+  "recoveryPoint": {
+    "capturedAt": "2026-11-02T10:14:30Z",
+    "databaseBackupId": "relay-export-20261102t101430"
+  },
+  "records": [
+    {
+      "recordType": "network",
+      "path": "records/network.ndjson",
+      "count": 1,
+      "bytes": 1000,
+      "sha256": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+    },
+    {
+      "recordType": "show",
+      "path": "records/show.ndjson",
+      "count": 2,
+      "bytes": 1137,
+      "sha256": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a"
+    },
+    {
+      "recordType": "season",
+      "path": "records/season.ndjson",
+      "count": 3,
+      "bytes": 1274,
+      "sha256": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
+    },
+    {
+      "recordType": "episode",
+      "path": "records/episode.ndjson",
+      "count": 6,
+      "bytes": 1411,
+      "sha256": "3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a"
+    },
+    {
+      "recordType": "episode_revision",
+      "path": "records/episode_revision.ndjson",
+      "count": 9,
+      "bytes": 1548,
+      "sha256": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+    },
+    {
+      "recordType": "person",
+      "path": "records/person.ndjson",
+      "count": 3,
+      "bytes": 1685,
+      "sha256": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+    },
+    {
+      "recordType": "topic",
+      "path": "records/topic.ndjson",
+      "count": 3,
+      "bytes": 1822,
+      "sha256": "6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a"
+    },
+    {
+      "recordType": "staff_user",
+      "path": "records/staff_user.ndjson",
+      "count": 3,
+      "bytes": 1959,
+      "sha256": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a"
+    },
+    {
+      "recordType": "show_role_grant",
+      "path": "records/show_role_grant.ndjson",
+      "count": 3,
+      "bytes": 2096,
+      "sha256": "8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a"
+    },
+    {
+      "recordType": "rights_record",
+      "path": "records/rights_record.ndjson",
+      "count": 3,
+      "bytes": 2233,
+      "sha256": "9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+    },
+    {
+      "recordType": "approval",
+      "path": "records/approval.ndjson",
+      "count": 3,
+      "bytes": 2370,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "recordType": "media_asset",
+      "path": "records/media_asset.ndjson",
+      "count": 31,
+      "bytes": 2507,
+      "sha256": "babababababababababababababababababababababababababababababababa"
+    },
+    {
+      "recordType": "transcript_revision",
+      "path": "records/transcript_revision.ndjson",
+      "count": 3,
+      "bytes": 2644,
+      "sha256": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+    },
+    {
+      "recordType": "chapter_set",
+      "path": "records/chapter_set.ndjson",
+      "count": 3,
+      "bytes": 2781,
+      "sha256": "dadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+    },
+    {
+      "recordType": "release_manifest",
+      "path": "records/release_manifest.ndjson",
+      "count": 5,
+      "bytes": 2918,
+      "sha256": "eaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea"
+    },
+    {
+      "recordType": "delivery_receipt",
+      "path": "records/delivery_receipt.ndjson",
+      "count": 17,
+      "bytes": 3055,
+      "sha256": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+    },
+    {
+      "recordType": "feed_snapshot",
+      "path": "records/feed_snapshot.ndjson",
+      "count": 3,
+      "bytes": 3192,
+      "sha256": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+    },
+    {
+      "recordType": "audit_event",
+      "path": "records/audit_event.ndjson",
+      "count": 3,
+      "bytes": 3329,
+      "sha256": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a"
+    }
+  ],
+  "media": {
+    "included": true,
+    "objectCount": 31,
+    "bytes": 412337152
+  },
+  "secrets": {
+    "included": false,
+    "procedure": "Restore secrets from the age-encrypted recovery bundle (relay-infra docs/portability.md, ADR 0008)."
+  }
+}

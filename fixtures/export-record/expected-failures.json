@@ -1,0 +1,11 @@
+{
+  "unknown-record-type.json": "/recordType must be equal to one of the allowed values",
+  "blank-guid.json": "/data/guid must match pattern",
+  "media-without-sha256.json": "/data must have required property 'sha256'",
+  "media-uploading.json": "/data/processingState must be equal to one of the allowed values",
+  "storage-key-leaked.json": "/data must NOT have additional properties",
+  "staff-oidc-subject.json": "/data must NOT have additional properties",
+  "manifest-body-invalid.json": "/data/body/kind must be equal to constant",
+  "receipt-invalid.json": "/data/output/kind must be equal to one of the allowed values",
+  "object-path-traversal.json": "/data/objectPath must match pattern"
+}

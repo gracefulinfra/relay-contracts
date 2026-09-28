@@ -1,0 +1,122 @@
+{
+  "recordType": "release_manifest",
+  "data": {
+    "sha256": "5c1f0e8d7b6a594837261504f3e2d1c0b9a8978675645342312f0e1d2c3b4a59",
+    "body": {
+      "schemaVersion": "1.0",
+      "manifestId": "4f6e516e-d171-55f7-9a4b-801fa6c8fe5d",
+      "sequence": 1,
+      "kind": "release",
+      "previousManifestId": null,
+      "network": {
+        "id": "9e3bdf6e-d535-5b73-980a-b83006adb65d",
+        "slug": "relay-demo"
+      },
+      "show": {
+        "id": "b3574351-38e3-5000-9fb9-3083dfe3714f",
+        "podcastGuid": "23913e19-7579-5cfe-a87c-43f1f2d78428",
+        "slug": "signal-garden"
+      },
+      "episode": {
+        "id": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+        "guid": "4435f3ab-f113-5cc9-9880-a58def9b191a"
+      },
+      "revision": {
+        "id": "1f4ee735-9e69-521d-8fc3-1be430bc5a13",
+        "number": 1
+      },
+      "access": {
+        "accessClass": "public",
+        "edition": "standard"
+      },
+      "originalPublishedAt": "2026-10-05T09:00:00Z",
+      "effectiveAt": "2026-10-05T09:00:00Z",
+      "scheduleGeneration": 1,
+      "metadata": {
+        "episode": {
+          "title": "Tide Pools at Dawn",
+          "summary": "A walk along the fictional Signal Garden coast.",
+          "notesHtml": "<p>Mara and Dev walk the tide pools of the fictional Signal Garden coast.</p>",
+          "notesSha256": "54fac761b256534203e5de5b5003777ffb48749d6224b9c59b68365efb3c7666",
+          "episodeType": "full",
+          "seasonNumber": 1,
+          "episodeNumber": 1,
+          "explicit": false,
+          "language": "en",
+          "link": "https://relay.test/shows/signal-garden/tide-pools-at-dawn",
+          "persons": [
+            {
+              "personId": "328a7ada-8eb4-5af6-9244-baded6143f4f",
+              "name": "Mara Quill",
+              "role": "host"
+            }
+          ],
+          "topics": ["nature", "field-recording"]
+        },
+        "show": {
+          "title": "Signal Garden",
+          "author": "Relay Demo Network",
+          "language": "en",
+          "explicit": false,
+          "categories": [
+            {
+              "name": "Science",
+              "subcategory": "Nature"
+            }
+          ],
+          "link": "https://relay.test/shows/signal-garden",
+          "feedUrl": "https://feeds.relay.test/signal-garden.xml",
+          "imageUrl": "https://media.relay.test/a/7a5b3315-4c5b-59a4-86e7-7676bb8eb976/signal-garden-3000.jpg",
+          "copyright": "CC BY 4.0 Relay Demo Network"
+        }
+      },
+      "enclosure": {
+        "assetId": "55a54d35-c5c1-5649-b95c-cef50e73d05b",
+        "url": "https://media.relay.test/a/55a54d35-c5c1-5649-b95c-cef50e73d05b/tide-pools-at-dawn.mp3",
+        "length": 28311552,
+        "mime": "audio/mpeg"
+      },
+      "assets": [
+        {
+          "assetId": "55a54d35-c5c1-5649-b95c-cef50e73d05b",
+          "lineageId": "9dfb151f-320f-5608-97b3-5cb3bf6bd1b7",
+          "version": 1,
+          "role": "rendition",
+          "format": "mp3",
+          "edition": "standard",
+          "mime": "audio/mpeg",
+          "bytes": 28311552,
+          "sha256": "7226521eba2d2e62d5ac04befcea2b7a340dd8cd8a54c1d64b1852d3b2acf696",
+          "url": "https://media.relay.test/a/55a54d35-c5c1-5649-b95c-cef50e73d05b/tide-pools-at-dawn.mp3",
+          "sourceAssetId": "fd74af2a-c945-5665-b9d5-5d3444e7b63e",
+          "durationMs": 1769472,
+          "bitrateKbps": 128
+        }
+      ],
+      "transcript": null,
+      "chapters": null,
+      "rights": [
+        {
+          "rightsRecordId": "430030ce-d0a5-525d-b8cd-df72f4f364b5",
+          "subject": "license",
+          "license": "CC-BY-4.0",
+          "attribution": "Relay Demo Network"
+        }
+      ],
+      "approvals": [
+        {
+          "approvalId": "12bb258a-73a2-54b1-8e26-13e8269a69c0",
+          "subjectType": "episode_revision",
+          "subjectId": "1f4ee735-9e69-521d-8fc3-1be430bc5a13",
+          "approverId": "0648876a-e536-5265-8574-3b739cb5b45b",
+          "approvedAt": "2026-10-01T15:30:00Z"
+        }
+      ],
+      "createdAt": "2026-10-05T09:00:01Z",
+      "createdBy": {
+        "actorType": "system",
+        "actorId": "8931b5b1-59f1-5af2-b7dd-e14c26670799"
+      }
+    }
+  }
+}

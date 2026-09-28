@@ -60,6 +60,18 @@ The repos are public, but the GHCR images are **private** (ADR-0004), so every p
   `gh auth refresh -s read:packages`, then `gh auth token | docker login ghcr.io -u <user> --password-stdin`.
 - **Pushes** only happen from the owning repo's workflow with `packages: write`.
 
+The **npm client** `@gracefulinfra/relay-client` is also on GitHub Packages, which always needs a token for
+npm installs, even for public repos:
+
+- **Another repo's workflow** (relay-admin, relay-site): grant that repo read access under the package's
+  _Settings → Manage Actions access_, give the job `packages: read`, and set up Node with
+  `registry-url: https://npm.pkg.github.com`, `scope: "@gracefulinfra"`, and
+  `NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`.
+- **People and agents**: `gh auth refresh -s read:packages`, then put
+  `//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}` in `~/.npmrc` and export
+  `NODE_AUTH_TOKEN="$(gh auth token)"`. Never commit a token.
+- The **Go module** `github.com/gracefulinfra/relay-contracts/gen/go` is fetched from the public repo and needs no token.
+
 Each image job verifies its own signature and SBOM attestation right after signing, so a green `image` job on
 `main` is standing evidence that the published image verifies.
 

@@ -25,10 +25,27 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: gen/go/go.mod
+          cache-dependency-path: gen/go/go.sum
       - run: pnpm install --frozen-lockfile
-      - name: Spectral lint (OpenAPI) and Prettier
-        run: pnpm lint
-      - name: JSON Schema fixture validation
-        run: pnpm test
-      - name: Pending checks
-        run: echo "::notice title=Pending::Client generation and generated-client drift checks arrive with P0-04."
+      - name: Lint (Spectral, Prettier, go vet and gofmt, client tsc and ESLint)
+        run: make lint
+      - name: Test (fixtures, Spectral rule tests, cost model, Go stub, TS client)
+        run: make test
+      - name: Generated code is up to date (drift check)
+        run: make check-generated
+      - name: Build the TS client and the Go stub
+        run: make build
+      - name: Package artifacts
+        run: |
+          mkdir -p out
+          (cd clients/ts && pnpm pack --pack-destination ../../out)
+          tar -czf out/relay-contracts-gen-go.tar.gz -C gen go
+          cp gen/openapi/relay.v0.json out/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: relay-contracts-${{ github.sha }}
+          path: out/
+          if-no-files-found: error

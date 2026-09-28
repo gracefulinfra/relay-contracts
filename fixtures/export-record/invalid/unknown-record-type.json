@@ -1,0 +1,11 @@
+{
+  "recordType": "listener_account",
+  "data": {
+    "id": "9e3bdf6e-d535-5b73-980a-b83006adb65d",
+    "slug": "relay-demo",
+    "name": "Relay Demo Network",
+    "defaultLanguage": "en",
+    "siteUrl": "https://relay.test",
+    "retiredVersionRetentionDays": 90
+  }
+}

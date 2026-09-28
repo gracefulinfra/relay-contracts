@@ -25,7 +25,7 @@
     }
   },
   "scripts": {
-    "generate": "openapi-typescript ../../gen/openapi/relay.v0.json -o src/generated/relay.v0.ts && prettier --write src/generated",
+    "generate": "openapi-typescript ../../gen/openapi/relay.v0.json --default-non-nullable=false -o src/generated/relay.v0.ts && prettier --write src/generated",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

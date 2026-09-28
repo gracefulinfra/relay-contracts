@@ -1,0 +1,1395 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gracefulinfra/relay-contracts/schemas/export-record.schema.json",
+  "title": "Export record",
+  "description": "One line of a `records/{recordType}.ndjson` file in a full export (export-index.schema.json). Field names match the API resources in openapi/relay.v0.yaml. Records keep original IDs, GUIDs, relationships, and revision history, so a restore needs no live source API. No record carries secrets, tokens, signed URLs, private storage keys, or listener personal data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["recordType", "data"],
+  "properties": {
+    "recordType": {
+      "type": "string",
+      "enum": [
+        "network",
+        "show",
+        "season",
+        "episode",
+        "episode_revision",
+        "episode_schedule",
+        "person",
+        "topic",
+        "staff_user",
+        "show_role_grant",
+        "rights_record",
+        "approval",
+        "media_asset",
+        "transcript_revision",
+        "chapter_set",
+        "release_manifest",
+        "delivery_receipt",
+        "feed_snapshot",
+        "audit_event"
+      ]
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "network"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/network"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "show"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/show"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "season"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/season"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "episode"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/episode"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "episode_revision"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/episodeRevision"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "episode_schedule"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/episodeSchedule"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "person"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/person"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "topic"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/topic"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "staff_user"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/staffUser"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "show_role_grant"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/showRoleGrant"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "rights_record"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/rightsRecord"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "approval"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/approval"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "media_asset"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/mediaAsset"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "transcript_revision"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/transcriptRevision"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "chapter_set"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/chapterSet"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "release_manifest"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/releaseManifest"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "delivery_receipt"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "delivery-receipt.schema.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "feed_snapshot"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/feedSnapshot"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recordType": {
+            "const": "audit_event"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/auditEvent"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "name",
+        "defaultLanguage",
+        "siteUrl",
+        "retiredVersionRetentionDays"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "defaultLanguage": {
+          "$ref": "#/$defs/language"
+        },
+        "siteUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "minLength": 1
+        },
+        "retiredVersionRetentionDays": {
+          "type": "integer",
+          "minimum": 30
+        }
+      }
+    },
+    "show": {
+      "description": "Includes slug history so old site links can still redirect.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "networkId",
+        "slug",
+        "previousSlugs",
+        "podcastGuid",
+        "title",
+        "author",
+        "description",
+        "language",
+        "explicit",
+        "categories",
+        "status",
+        "feedUrl",
+        "newFeedUrl",
+        "artworkAssetId",
+        "copyright",
+        "requireSeparateApprover",
+        "transcriptionAutoStart",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "networkId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "previousSlugs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/slug"
+          }
+        },
+        "podcastGuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "language": {
+          "$ref": "#/$defs/language"
+        },
+        "explicit": {
+          "type": "boolean"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              "subcategory": {
+                "type": ["string", "null"],
+                "maxLength": 100
+              }
+            }
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived"]
+        },
+        "feedUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "minLength": 1
+        },
+        "newFeedUrl": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "artworkAssetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "copyright": {
+          "type": ["string", "null"],
+          "maxLength": 1000
+        },
+        "requireSeparateApprover": {
+          "type": "boolean"
+        },
+        "transcriptionAutoStart": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "season": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "showId", "number", "title", "createdAt"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "showId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "episode": {
+      "description": "Includes tombstones of deleted episodes, so their GUIDs are never reused (ADR 0006 G3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "showId",
+        "seasonId",
+        "guid",
+        "guidOrigin",
+        "publicationStatus",
+        "deleted",
+        "currentManifestId",
+        "originalPublishedAt",
+        "scheduleGeneration",
+        "topicIds",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "showId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "seasonId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "guid": {
+          "description": "The permanent GUID, byte for byte (ADR 0006).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^\\S(.*\\S)?$"
+        },
+        "guidOrigin": {
+          "type": "string",
+          "enum": ["generated", "imported", "reconciled"]
+        },
+        "publicationStatus": {
+          "type": "string",
+          "enum": ["unreleased", "scheduled", "publishing", "published", "unpublished"]
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "currentManifestId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "originalPublishedAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "scheduleGeneration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "topicIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "episodeRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episodeId",
+        "number",
+        "kind",
+        "state",
+        "title",
+        "subtitle",
+        "summary",
+        "notesDoc",
+        "episodeType",
+        "episodeNumber",
+        "explicit",
+        "accessClass",
+        "edition",
+        "enclosureAssetId",
+        "transcriptRevisionId",
+        "chapterSetId",
+        "basedOnRevisionId",
+        "credits",
+        "submittedBy",
+        "submittedAt",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["initial", "correction"]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "correction_draft",
+            "in_review",
+            "changes_requested",
+            "approved",
+            "released",
+            "superseded",
+            "discarded"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "subtitle": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "notesDoc": {
+          "description": "TipTap/ProseMirror JSON (A15).",
+          "type": "object",
+          "required": ["type"]
+        },
+        "episodeType": {
+          "type": "string",
+          "enum": ["full", "trailer", "bonus"]
+        },
+        "episodeNumber": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "explicit": {
+          "type": "boolean"
+        },
+        "accessClass": {
+          "type": "string",
+          "enum": ["public", "registered", "paid"]
+        },
+        "edition": {
+          "type": "string",
+          "enum": ["standard", "ad_free", "bonus"]
+        },
+        "enclosureAssetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "transcriptRevisionId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "chapterSetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "basedOnRevisionId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "credits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["personId", "role", "sortOrder"],
+            "properties": {
+              "personId": {
+                "$ref": "#/$defs/uuid"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["host", "guest", "producer", "other"]
+              },
+              "sortOrder": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "submittedBy": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "submittedAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "episodeSchedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episodeId",
+        "generation",
+        "revisionId",
+        "publishAt",
+        "state",
+        "createdAt",
+        "createdBy"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "publishAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["pending", "fired", "cancelled", "superseded"]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "displayName", "bioDoc", "href", "imageAssetId"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "bioDoc": {
+          "type": ["object", "null"]
+        },
+        "href": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "imageAssetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "label"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1
+        }
+      }
+    },
+    "staffUser": {
+      "description": "Only what attribution needs. The identity-provider subject and contact details are not exported.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "networkAdmin"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "networkAdmin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "showRoleGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["showId", "staffUserId", "role", "grantedAt"],
+      "properties": {
+        "showId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "staffUserId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["show_editor", "producer", "viewer"]
+        },
+        "grantedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "rightsRecord": {
+      "description": "The private rights document is referenced by media path only when media is included.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episodeId",
+        "mediaAssetId",
+        "subject",
+        "license",
+        "attribution",
+        "state",
+        "expiresAt",
+        "documentSha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "mediaAssetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["music", "guest_release", "image", "license"]
+        },
+        "license": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1
+        },
+        "attribution": {
+          "type": ["string", "null"],
+          "maxLength": 2000
+        },
+        "state": {
+          "type": "string",
+          "enum": ["pending", "cleared", "restricted", "expired"]
+        },
+        "expiresAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "documentSha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "subjectType",
+        "subjectId",
+        "approverId",
+        "decision",
+        "comment",
+        "decidedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "subjectType": {
+          "type": "string",
+          "enum": ["episode_revision", "transcript_revision", "chapter_set", "rights_record"]
+        },
+        "subjectId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "approverId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["approved", "changes_requested", "rejected"]
+        },
+        "comment": {
+          "type": ["string", "null"],
+          "maxLength": 4000
+        },
+        "decidedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "mediaAsset": {
+      "description": "The checksummed media inventory: every version, including retired and purged ones. `objectPath` is set when the bytes are in the archive.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episodeId",
+        "lineageId",
+        "version",
+        "role",
+        "format",
+        "edition",
+        "fileName",
+        "mime",
+        "bytes",
+        "sha256",
+        "durationMs",
+        "width",
+        "height",
+        "language",
+        "sourceAssetId",
+        "processingState",
+        "publicUrl",
+        "retainUntil",
+        "objectPath",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "lineageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "master",
+            "rendition",
+            "caption",
+            "thumbnail",
+            "transcript",
+            "chapters",
+            "artwork"
+          ]
+        },
+        "format": {
+          "type": ["string", "null"],
+          "enum": [
+            "mp3",
+            "aac_m4a",
+            "opus",
+            "wav",
+            "flac",
+            "hls_master",
+            "hls_media",
+            "mp4",
+            "webvtt",
+            "srt",
+            "podcast_json",
+            "podcast_chapters_json",
+            "text",
+            "jpeg",
+            "png",
+            "webp",
+            null
+          ]
+        },
+        "edition": {
+          "type": "string",
+          "enum": ["standard", "ad_free", "bonus"]
+        },
+        "fileName": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "maxLength": 255
+        },
+        "mime": {
+          "type": "string",
+          "maxLength": 255,
+          "minLength": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "durationMs": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "width": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "height": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "language": {
+          "type": ["string", "null"],
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"
+        },
+        "sourceAssetId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "processingState": {
+          "type": "string",
+          "enum": ["ready", "rejected", "failed", "retired", "purged"]
+        },
+        "publicUrl": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "retainUntil": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "objectPath": {
+          "description": "`media/objects/{id}/{fileName}` when included; null when not included or purged.",
+          "type": ["string", "null"],
+          "pattern": "^media/objects/[0-9a-f-]{36}/[A-Za-z0-9._-]+$"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "transcriptRevision": {
+      "description": "Draft and rejected revisions are exported too, marked by state.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "episodeId",
+        "sourceAssetId",
+        "number",
+        "source",
+        "engine",
+        "language",
+        "state",
+        "supersedesId",
+        "hasSpeakerLabels",
+        "segments"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sourceAssetId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": ["whisper", "hosted", "manual"]
+        },
+        "engine": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "language": {
+          "$ref": "#/$defs/language"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["pending", "failed", "draft", "approved", "rejected", "superseded"]
+        },
+        "supersedesId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "hasSpeakerLabels": {
+          "type": "boolean"
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["startMs", "endMs", "speaker", "text"],
+            "properties": {
+              "startMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "speaker": {
+                "type": ["string", "null"],
+                "maxLength": 200
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 10000
+              }
+            }
+          }
+        }
+      }
+    },
+    "chapterSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "episodeId", "version", "state", "timedAgainstAssetId", "chapters"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": ["draft", "approved", "superseded"]
+        },
+        "timedAgainstAssetId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["startMs", "endMs", "title", "url", "imageAssetId"],
+            "properties": {
+              "startMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endMs": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              "url": {
+                "type": ["string", "null"],
+                "maxLength": 2048
+              },
+              "imageAssetId": {
+                "type": ["string", "null"],
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "releaseManifest": {
+      "description": "A manifest exactly as stored, with the SHA-256 of its canonical JSON.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "body"],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "body": {
+          "$ref": "release-manifest.schema.json"
+        }
+      }
+    },
+    "feedSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "showId",
+        "variant",
+        "generation",
+        "objectKey",
+        "sha256",
+        "bytes",
+        "manifestIds",
+        "renderedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "showId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "variant": {
+          "type": "string",
+          "enum": ["public", "private_template"]
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "objectKey": {
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manifestIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        },
+        "renderedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "auditEvent": {
+      "description": "Diffs are already redacted when written.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "occurredAt",
+        "actorType",
+        "actorId",
+        "action",
+        "subjectType",
+        "subjectId",
+        "showId",
+        "diff",
+        "requestId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "actorType": {
+          "type": "string",
+          "enum": ["staff", "listener", "system"]
+        },
+        "actorId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z_]+(\\.[a-z_]+)+$"
+        },
+        "subjectType": {
+          "type": "string",
+          "pattern": "^[a-z_]+$"
+        },
+        "subjectId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "showId": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "diff": {
+          "type": "object"
+        },
+        "requestId": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}
