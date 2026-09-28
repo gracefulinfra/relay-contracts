@@ -57,7 +57,8 @@ for (const [name, schema] of Object.entries(schemas)) {
     walk(node, (obj) => {
       if (typeof obj.$ref !== "string") return;
       if (obj.$ref === "#") obj.$ref = `#/components/schemas/${name}`;
-      else if (obj.$ref.startsWith("#/$defs/")) obj.$ref = target(obj.$ref.slice("#/$defs/".length));
+      else if (obj.$ref.startsWith("#/$defs/"))
+        obj.$ref = target(obj.$ref.slice("#/$defs/".length));
       else throw new Error(`${ref}: unsupported $ref ${obj.$ref}`);
     });
 
@@ -74,7 +75,8 @@ for (const [name, schema] of Object.entries(schemas)) {
 // 2. Every remaining $ref must be internal and resolve.
 walk(doc, (obj) => {
   if (typeof obj.$ref !== "string") return;
-  if (!obj.$ref.startsWith("#/")) throw new Error(`external $ref outside a whole component: ${obj.$ref}`);
+  if (!obj.$ref.startsWith("#/"))
+    throw new Error(`external $ref outside a whole component: ${obj.$ref}`);
   const target = obj.$ref
     .slice(2)
     .split("/")

@@ -117,7 +117,8 @@ rules:
           schema:
             type: array
             allOf:
-              - contains: { type: object, properties: { name: { const: cursor } }, required: [name] }
+              - contains:
+                  { type: object, properties: { name: { const: cursor } }, required: [name] }
               - contains: { type: object, properties: { name: { const: limit } }, required: [name] }
       - field: "responses.200.content.application/json.schema"
         function: schema

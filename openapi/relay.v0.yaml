@@ -3502,7 +3502,19 @@ components:
       description: State machine §3.
       type: string
       enum:
-        [uploading, uploaded, expired, probing, queued, processing, ready, rejected, failed, retired, purged]
+        [
+          uploading,
+          uploaded,
+          expired,
+          probing,
+          queued,
+          processing,
+          ready,
+          rejected,
+          failed,
+          retired,
+          purged,
+        ]
     MediaAsset:
       description: One immutable file version (ADR 0006 V2).
       type: object
@@ -4065,7 +4077,18 @@ components:
       description: An append-only record of a state-changing command.
       type: object
       required:
-        [id, occurredAt, actorType, actorId, action, subjectType, subjectId, showId, diff, requestId]
+        [
+          id,
+          occurredAt,
+          actorType,
+          actorId,
+          action,
+          subjectType,
+          subjectId,
+          showId,
+          diff,
+          requestId,
+        ]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         occurredAt: { type: string, format: date-time }
@@ -4152,7 +4175,20 @@ components:
     PublicShow:
       type: object
       required:
-        [id, slug, podcastGuid, title, author, description, language, explicit, categories, feedUrl, imageUrl, link]
+        [
+          id,
+          slug,
+          podcastGuid,
+          title,
+          author,
+          description,
+          language,
+          explicit,
+          categories,
+          feedUrl,
+          imageUrl,
+          link,
+        ]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         slug: { $ref: "#/components/schemas/Slug" }
