@@ -12,7 +12,8 @@
     "lint:openapi": "spectral lint --fail-severity=warn openapi/*.yaml",
     "lint:format": "prettier --check .",
     "lint": "pnpm lint:openapi && pnpm lint:format",
-    "test": "node scripts/validate-fixtures.mjs && node scripts/cost-model.mjs --check",
+    "test": "node scripts/validate-fixtures.mjs && node scripts/test-spectral-rules.mjs && node scripts/cost-model.mjs --check",
+    "bundle": "node scripts/bundle-openapi.mjs openapi/relay.v0.yaml gen/openapi/relay.v0.json",
     "format": "prettier --write .",
     "cost-model": "node scripts/cost-model.mjs"
   },
@@ -20,6 +21,7 @@
     "@stoplight/spectral-cli": "6.16.3",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
-    "prettier": "3.9.9"
+    "prettier": "3.9.9",
+    "yaml": "2.9.1"
   }
 }

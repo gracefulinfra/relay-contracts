@@ -1,0 +1,11 @@
+{
+  "secrets-included.json": "/secrets/included must be equal to constant",
+  "path-traversal.json": "/records/1/path must match pattern",
+  "path-type-mismatch.json": "show path must be records/show.ndjson",
+  "duplicate-record-type.json": "record type network is listed twice",
+  "missing-episodes.json": "required record type episode is missing",
+  "bad-sha256.json": "/records/0/sha256 must match pattern",
+  "media-counts-without-media.json": "media not included, so objectCount and bytes must be 0",
+  "capture-after-export.json": "recoveryPoint.capturedAt is after createdAt",
+  "unknown-format-version.json": "/exportFormatVersion must be equal to constant"
+}

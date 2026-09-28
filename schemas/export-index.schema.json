@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gracefulinfra/relay-contracts/schemas/export-index.schema.json",
+  "title": "Export index",
+  "description": "`export.json` at the root of a full Relay export archive (conventions: full export, P1-20). It lists every record file and the media inventory with counts and SHA-256, so an export can be verified and restored without a live source API. Records are NDJSON files under `records/`, one `export-record.schema.json` document per line. Media bytes, when included, are under `media/objects/{assetId}/{fileName}`. Secrets are never exported; they move through the recovery procedure (ADR 0008).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "exportFormatVersion",
+    "exportId",
+    "network",
+    "createdAt",
+    "createdBy",
+    "source",
+    "recoveryPoint",
+    "records",
+    "media",
+    "secrets"
+  ],
+  "properties": {
+    "exportFormatVersion": {
+      "description": "Major.minor. Minor versions only add optional fields or record types.",
+      "type": "string",
+      "const": "1.0"
+    },
+    "exportId": { "$ref": "#/$defs/uuid" },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 100 }
+      }
+    },
+    "createdAt": { "$ref": "#/$defs/timestamp" },
+    "createdBy": {
+      "description": "The admin StaffUser who requested the export.",
+      "$ref": "#/$defs/uuid"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relayApiVersion", "contractsVersion"],
+      "properties": {
+        "relayApiVersion": {
+          "description": "The relay-api build (a git SHA or semver tag).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "contractsVersion": {
+          "description": "The relay-contracts release the exporter was built against.",
+          "type": "string",
+          "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+        }
+      }
+    },
+    "recoveryPoint": {
+      "description": "All records were read in one consistent database snapshot taken at `capturedAt`. Every media object the records reference is retained until the export is verified.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capturedAt"],
+      "properties": {
+        "capturedAt": { "$ref": "#/$defs/timestamp" },
+        "databaseBackupId": {
+          "description": "The database backup taken at the same point, when there is one (for example a CNPG backup name).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "records": {
+      "description": "One entry per record file. Each record type appears exactly once.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recordType", "path", "count", "bytes", "sha256"],
+        "properties": {
+          "recordType": { "$ref": "#/$defs/recordType" },
+          "path": {
+            "description": "`records/{recordType}.ndjson`, relative to the archive root.",
+            "type": "string",
+            "pattern": "^records/[a-z_]+\\.ndjson$"
+          },
+          "count": { "type": "integer", "minimum": 0 },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "objectCount", "bytes"],
+      "properties": {
+        "included": {
+          "description": "True when media bytes are in the archive. The `media_asset` records are the inventory either way, with SHA-256 and size for every version.",
+          "type": "boolean"
+        },
+        "objectCount": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "secrets": {
+      "description": "Always excluded. Recovery of secrets and key material follows the recovery procedure, never the export.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "procedure"],
+      "properties": {
+        "included": { "type": "boolean", "const": false },
+        "procedure": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "recordType": {
+      "type": "string",
+      "enum": [
+        "network",
+        "show",
+        "season",
+        "episode",
+        "episode_revision",
+        "episode_schedule",
+        "person",
+        "topic",
+        "staff_user",
+        "show_role_grant",
+        "rights_record",
+        "approval",
+        "media_asset",
+        "transcript_revision",
+        "chapter_set",
+        "release_manifest",
+        "delivery_receipt",
+        "feed_snapshot",
+        "audit_event"
+      ]
+    }
+  }
+}

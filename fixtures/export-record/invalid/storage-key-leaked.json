@@ -1,0 +1,27 @@
+{
+  "recordType": "media_asset",
+  "data": {
+    "id": "fd74af2a-c945-5665-b9d5-5d3444e7b63e",
+    "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+    "lineageId": "2c4e6a8b-0d1f-4a3c-9e5b-7d9f1a3c5e7b",
+    "version": 1,
+    "role": "master",
+    "format": "wav",
+    "edition": "standard",
+    "fileName": "tide-pools-master.wav",
+    "mime": "audio/wav",
+    "bytes": 312116224,
+    "sha256": "3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d",
+    "durationMs": 1769472,
+    "width": null,
+    "height": null,
+    "language": null,
+    "sourceAssetId": null,
+    "processingState": "ready",
+    "publicUrl": null,
+    "retainUntil": null,
+    "objectPath": "media/objects/fd74af2a-c945-5665-b9d5-5d3444e7b63e/tide-pools-master.wav",
+    "createdAt": "2026-10-04T08:30:00Z",
+    "storageKey": "incoming/fd74af2a/tide.wav"
+  }
+}

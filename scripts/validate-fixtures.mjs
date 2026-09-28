@@ -53,11 +53,16 @@ const fail = (msg) => {
   console.error(`FAIL ${msg}`);
 };
 
+// Register every schema first, so one schema can $ref another by its relative $id
+// (export-record.schema.json reuses the manifest and receipt schemas).
+for (const file of schemaFiles) ajv.addSchema(readJSON(join(schemaDir, file)));
+
 for (const file of schemaFiles) {
   const name = file.replace(/\.schema\.json$/, "");
   let validate;
   try {
-    validate = ajv.compile(readJSON(join(schemaDir, file)));
+    validate = ajv.getSchema(readJSON(join(schemaDir, file)).$id);
+    if (!validate) throw new Error("no $id");
   } catch (err) {
     fail(`${file}: schema does not compile: ${err.message}`);
     continue;

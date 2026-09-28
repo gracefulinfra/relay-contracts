@@ -1,0 +1,26 @@
+{
+  "recordType": "media_asset",
+  "data": {
+    "id": "55a54d35-c5c1-5649-b95c-cef50e73d05b",
+    "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+    "lineageId": "9dfb151f-320f-5608-97b3-5cb3bf6bd1b7",
+    "version": 1,
+    "role": "rendition",
+    "format": "mp3",
+    "edition": "standard",
+    "fileName": "tide-pools-at-dawn.mp3",
+    "mime": "audio/mpeg",
+    "bytes": 28311552,
+    "sha256": "7226521eba2d2e62d5ac04befcea2b7a340dd8cd8a54c1d64b1852d3b2acf696",
+    "durationMs": 1769472,
+    "width": null,
+    "height": null,
+    "language": null,
+    "sourceAssetId": "fd74af2a-c945-5665-b9d5-5d3444e7b63e",
+    "processingState": "uploading",
+    "publicUrl": "https://media.relay.test/a/55a54d35-c5c1-5649-b95c-cef50e73d05b/tide-pools-at-dawn.mp3",
+    "retainUntil": "2026-12-01T00:00:00Z",
+    "objectPath": null,
+    "createdAt": "2026-10-04T09:00:00Z"
+  }
+}

@@ -89,6 +89,26 @@ that chart ships.
 
 P0-05 PR2 and PR3 add the rows they deploy here in the same PR: Tempo and Grafana.
 
+## Contracts code generation (pinned by P0-04)
+
+`relay-contracts` `make generate`, the committed Go module `gen/go`, and the TS package `clients/ts`.
+Verified on 2026-09-28. Released OpenAPI 3.1 support was checked by compiling the real spec, not by
+reading a README. The evidence is the `gen/go` tests (fixture round trips, nullability, the embedded
+spec, and the strict server) and the `clients/ts` type tests (P0-04 implementation clarifications).
+
+| Component                       | Pinned          | Where                                                               | Source                                                                                  | Verified   |
+| ------------------------------- | --------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| oapi-codegen                    | v2.8.0          | `Makefile` `OAPI_CODEGEN_VERSION` (`go run …@version`)              | `go list -m -json github.com/oapi-codegen/oapi-codegen/v2@latest` (released 2026-07-17) | 2026-09-28 |
+| oapi-codegen runtime / nullable | v1.7.0 / v1.2.0 | `gen/go/go.mod`                                                     | `go list -m -json` (released 2026-08-16 / 2026-06-22)                                   | 2026-09-28 |
+| kin-openapi (embedded spec)     | v0.149.0        | `gen/go/go.mod`                                                     | `go list -m -json` (released 2026-08-28)                                                | 2026-09-28 |
+| openapi-typescript              | 7.13.0          | `clients/ts/package.json` (run with `--default-non-nullable=false`) | <https://www.npmjs.com/package/openapi-typescript> (released 2026-02-11; latest)        | 2026-09-28 |
+| openapi-fetch                   | 0.17.0          | `clients/ts/package.json` (runtime dependency)                      | <https://www.npmjs.com/package/openapi-fetch> (released 2026-02-11; latest)             | 2026-09-28 |
+| yaml (spec bundler)             | 2.9.1           | root `package.json`                                                 | <https://www.npmjs.com/package/yaml> (released 2026-09-11)                              | 2026-09-28 |
+| actionlint (local check only)   | v1.7.12         | `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`         | `go list -m -json github.com/rhysd/actionlint@latest` (released 2026-03-30)             | 2026-09-28 |
+
+Redocly CLI 2.54.3 was evaluated as the bundler and rejected: its hoisted `$defs` names collide once
+they become Go type names (`slug` and `Slug`). `scripts/bundle-openapi.mjs` prefixes them instead.
+
 ## Platform components (not yet pinned)
 
 These are the `01-CONVENTIONS.md` baselines. They are **unverified** until the prompt that deploys them

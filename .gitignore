@@ -1,8 +1,8 @@
 .DS_Store
 /bin/
-/dist/
+dist/
 /out/
-/coverage/
+coverage/
 node_modules/
 *.out
 .env

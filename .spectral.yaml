@@ -1,3 +1,147 @@
 # Spectral ruleset for all OpenAPI documents. CI fails on warnings as well as errors.
+# The relay-* rules enforce the conventions in openapi/relay.v0.yaml's description.
 extends:
   - spectral:oas
+rules:
+  # Every operation has a `summary` (relay-operation-summary). A separate `description` is added
+  # only where it says something the summary does not, so the built-in rule is off.
+  operation-description: off
+
+  relay-operation-summary:
+    description: Every operation has a summary.
+    severity: error
+    given: "$.paths[*][get,put,post,patch,delete]"
+    then:
+      field: summary
+      function: truthy
+
+  relay-authz-declared:
+    description: Every operation declares its minimum actor in x-relay-authz (model/state-machines.md, Actors).
+    severity: error
+    given: "$.paths[*][get,put,post,patch,delete]"
+    then:
+      field: x-relay-authz
+      function: enumeration
+      functionOptions:
+        values: [public, staff, viewer+, producer+, editor+, admin]
+
+  relay-authz-present:
+    description: x-relay-authz is required.
+    severity: error
+    given: "$.paths[*][get,put,post,patch,delete]"
+    then:
+      field: x-relay-authz
+      function: truthy
+
+  relay-public-is-anonymous:
+    description: Operations under /public are anonymous (security is empty) and declare x-relay-authz public.
+    severity: error
+    given: "$.paths[?(@property.startsWith('/public/'))][get,put,post,patch,delete]"
+    then:
+      - field: security
+        function: schema
+        functionOptions:
+          schema: { type: array, maxItems: 0 }
+      - field: x-relay-authz
+        function: pattern
+        functionOptions:
+          match: "^public$"
+
+  relay-staff-not-public:
+    description: Only operations under /public may be anonymous.
+    severity: error
+    given: "$.paths[?(!@property.startsWith('/public/'))][get,put,post,patch,delete]"
+    then:
+      - field: x-relay-authz
+        function: pattern
+        functionOptions:
+          notMatch: "^public$"
+      - field: security
+        function: falsy
+
+  relay-public-read-only:
+    description: The public API is read-only.
+    severity: error
+    given: "$.paths[?(@property.startsWith('/public/'))]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          not:
+            anyOf:
+              - { required: [post] }
+              - { required: [put] }
+              - { required: [patch] }
+              - { required: [delete] }
+
+  relay-idempotency-key:
+    description: Every mutating operation requires the Idempotency-Key header.
+    severity: error
+    given: "$.paths[*][put,post,patch,delete]"
+    then:
+      field: parameters
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            type: object
+            required: [name, in, required]
+            properties:
+              name: { const: Idempotency-Key }
+              in: { const: header }
+              required: { const: true }
+
+  relay-problem-json:
+    description: Every error response is application/problem+json and nothing else (RFC 9457).
+    severity: error
+    given: "$.paths[*][*].responses[?(@property >= '400' || @property === 'default')]"
+    then:
+      field: content
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [application/problem+json]
+          properties: { application/problem+json: true }
+          additionalProperties: false
+
+  relay-list-pagination:
+    description: list* operations take cursor and limit, and return {items, nextCursor}.
+    severity: error
+    given: "$.paths[*][?(@property === 'get' && @.operationId && @.operationId.startsWith('list'))]"
+    then:
+      - field: parameters
+        function: schema
+        functionOptions:
+          schema:
+            type: array
+            allOf:
+              - contains:
+                  { type: object, properties: { name: { const: cursor } }, required: [name] }
+              - contains: { type: object, properties: { name: { const: limit } }, required: [name] }
+      - field: "responses.200.content.application/json.schema"
+        function: schema
+        functionOptions:
+          schema:
+            type: object
+            required: [required, properties]
+            properties:
+              required:
+                type: array
+                allOf:
+                  - contains: { const: items }
+                  - contains: { const: nextCursor }
+
+  relay-merge-patch:
+    description: PATCH bodies are JSON Merge Patch (RFC 7396).
+    severity: error
+    given: "$.paths[*].patch.requestBody.content"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [application/merge-patch+json]
+          properties: { application/merge-patch+json: true }
+          additionalProperties: false

@@ -1,0 +1,23 @@
+{
+  "recordType": "transcript_revision",
+  "data": {
+    "id": "3e5a7c9d-1f2b-4c3d-8e4f-5a6b7c8d9e0f",
+    "episodeId": "d54760b5-9c2a-5fff-b1f0-1513cd1e7cac",
+    "sourceAssetId": "fd74af2a-c945-5665-b9d5-5d3444e7b63e",
+    "number": 1,
+    "source": "whisper",
+    "engine": "faster-whisper/small",
+    "language": "en",
+    "state": "draft",
+    "supersedesId": null,
+    "hasSpeakerLabels": false,
+    "segments": [
+      {
+        "startMs": 0,
+        "endMs": 4200,
+        "speaker": null,
+        "text": "Welcome to Signal Garden."
+      }
+    ]
+  }
+}

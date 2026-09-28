@@ -1,0 +1,30 @@
+{
+  "recordType": "show",
+  "data": {
+    "id": "b3574351-38e3-5000-9fb9-3083dfe3714f",
+    "networkId": "9e3bdf6e-d535-5b73-980a-b83006adb65d",
+    "slug": "signal-garden",
+    "previousSlugs": ["the-signal-garden"],
+    "podcastGuid": "23913e19-7579-5cfe-a87c-43f1f2d78428",
+    "title": "Signal Garden",
+    "author": "Relay Demo Network",
+    "description": "A fictional show about a fictional coast.",
+    "language": "en",
+    "explicit": false,
+    "categories": [
+      {
+        "name": "Science",
+        "subcategory": "Nature"
+      }
+    ],
+    "status": "active",
+    "feedUrl": "https://feeds.relay.test/signal-garden.xml",
+    "newFeedUrl": null,
+    "artworkAssetId": "7a5b3315-4c5b-59a4-86e7-7676bb8eb976",
+    "copyright": "CC BY 4.0 Relay Demo Network",
+    "requireSeparateApprover": true,
+    "transcriptionAutoStart": true,
+    "createdAt": "2026-10-01T09:00:00Z",
+    "updatedAt": "2026-10-20T12:00:00Z"
+  }
+}

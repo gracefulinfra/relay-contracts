@@ -1,0 +1,9 @@
+{
+  "recordType": "staff_user",
+  "data": {
+    "id": "0648876a-e536-5265-8574-3b739cb5b45b",
+    "displayName": "Owner",
+    "networkAdmin": true,
+    "oidcSubject": "f:abc:owner"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "recordType": "approval",
+  "data": {
+    "id": "12bb258a-73a2-54b1-8e26-13e8269a69c0",
+    "subjectType": "episode_revision",
+    "subjectId": "1f4ee735-9e69-521d-8fc3-1be430bc5a13",
+    "approverId": "0648876a-e536-5265-8574-3b739cb5b45b",
+    "decision": "approved",
+    "comment": null,
+    "decidedAt": "2026-10-01T15:30:00Z"
+  }
+}

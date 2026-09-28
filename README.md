@@ -9,8 +9,9 @@ workspace) and the architecture decisions in
 
 ## Status
 
-Bootstrapped by **P0-01**. **P0-04** adds the domain model, the state machines, and the release-manifest and
-delivery-receipt schemas. The OpenAPI v0 document and generated clients follow in a second P0-04 PR.
+Bootstrapped by **P0-01**. **P0-04** adds the domain model, the state machines, the release-manifest,
+delivery-receipt, and full-export schemas, **OpenAPI v0** (`openapi/relay.v0.yaml`), and the generated
+**TS client** (`@gracefulinfra/relay-client`) and **Go strict-server stub** (`gen/go`).
 
 ## Quickstart
 
@@ -23,14 +24,34 @@ make test
 make lint
 ```
 
-| Target                   | What it does today                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make test`              | Validates every fixture in `fixtures/<schema>/{valid,invalid}/` against `schemas/<schema>.schema.json` and its cross-field invariants. Valid fixtures must pass, and each invalid one must fail with the error named in `expected-failures.json`. Also checks the cost model: the pitch's 5.76 TB example reproduces, and `reports/cost-model/outputs.*` are current |
-| `make lint`              | Spectral lint of `openapi/*.yaml` (fails on warnings) and a Prettier check                                                                                                                                                                                                                                                                                           |
-| `make build`             | Pending: client generation arrives with P0-04                                                                                                                                                                                                                                                                                                                        |
-| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                                                                                                                                                                                                                                    |
+| Target                   | What it does                                                                                                                                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make test`              | Validates every fixture against its schema and invariants, proves each `relay-*` Spectral rule can fail, checks the cost model, and runs the Go stub tests (`-race`) and the TS client tests (Vitest, including type tests) |
+| `make lint`              | Spectral on `openapi/*.yaml` (fails on warnings), Prettier, `go vet` and `gofmt` on `gen/go`, and `tsc` and ESLint on `clients/ts`                                                                                          |
+| `make generate`          | Bundles `openapi/relay.v0.yaml` into `gen/openapi/relay.v0.json`, then regenerates `gen/go/relayapi/relay.gen.go` (oapi-codegen) and `clients/ts/src/generated/relay.v0.ts` (openapi-typescript). Commit the result         |
+| `make check-generated`   | Fails if the committed generated code differs from a fresh `make generate`. CI runs it                                                                                                                                      |
+| `make build`             | Builds `clients/ts/dist` and compiles the Go stub                                                                                                                                                                           |
+| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                                                                                           |
 
-`openapi/openapi.yaml` is still the bootstrap placeholder. The second P0-04 PR replaces it with `openapi/relay.v0.yaml`.
+Change the API by editing `openapi/relay.v0.yaml` (conventions: the OpenAPI is updated first), then
+`make generate`, and commit the spec and the generated code together.
+
+## Using the generated code
+
+- **TypeScript** (relay-admin, relay-site): `@gracefulinfra/relay-client` on GitHub Packages. Add
+  `@gracefulinfra:registry=https://npm.pkg.github.com` to `.npmrc`, and authenticate as described in
+  [docs/ci.md](docs/ci.md#package-authentication). `createRelayClient({ baseUrl, getAccessToken })` returns a
+  fully typed [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) client. It never sends the staff token to `/public/*`.
+- **Go** (relay-api): `go get github.com/gracefulinfra/relay-contracts/gen/go@vX.Y.Z` (public; no token). Implement
+  `relayapi.StrictServerInterface` and mount it with `relayapi.HandlerWithOptions(relayapi.NewStrictHandler(impl, mw), relayapi.StdHTTPServerOptions{BaseURL: "/v0"})`.
+  `relayapi.GetSwagger()` returns the embedded spec, including each operation's `x-relay-authz`.
+
+## Releases
+
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It checks that the tag,
+`clients/ts/package.json`, and the spec's `info.version` agree, reruns every check, publishes the client to
+GitHub Packages, tags the Go module `gen/go/vX.Y.Z` on the same commit, and creates a GitHub release with
+the bundled spec and both packages. Bump all three versions in one PR before tagging.
 
 ## Layout
 
@@ -38,7 +59,9 @@ make lint
 | ------------------------ | -------------------------------------------------------------------------- |
 | `adr/`                   | Architecture decision records (MADR). Start from `0000-template.md`        |
 | `model/`                 | Domain model (`erd.md`) and state machines (`state-machines.md`)           |
-| `openapi/`               | OpenAPI 3.1 documents                                                      |
+| `openapi/`               | OpenAPI 3.1 source (`relay.v0.yaml`)                                       |
+| `gen/`                   | Generated: the bundled spec (`gen/openapi`) and the Go module (`gen/go`)   |
+| `clients/ts/`            | `@gracefulinfra/relay-client` (generated types plus a thin wrapper)        |
 | `schemas/`               | JSON Schemas (draft 2020-12) for events and manifests                      |
 | `fixtures/`              | Valid and invalid examples for each schema, and why each invalid one fails |
 | `scripts/invariants/`    | Cross-field rules JSON Schema cannot express, one module per schema        |
@@ -49,4 +72,6 @@ make lint
 
 ## CI
 
-`.github/workflows/ci.yml` runs the `check` job (Spectral, Prettier, fixture validation, and the cost-model check) on every PR and push.
+`.github/workflows/ci.yml` runs the `check` job on every PR and push: `make lint`, `make test`,
+`make check-generated`, and `make build`. It uploads the bundled spec, the client tarball, and the Go stub as
+the `relay-contracts-<sha>` artifact. `.github/workflows/release.yml` runs on `vX.Y.Z` tags.

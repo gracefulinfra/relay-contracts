@@ -18,7 +18,7 @@
     "occurredAt"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "schemaVersion": { "type": "string", "const": "1.0" },
     "receiptId": { "$ref": "#/$defs/uuid" },
     "manifestId": { "$ref": "#/$defs/uuid" },
     "manifestSha256": {
@@ -31,7 +31,10 @@
       "additionalProperties": false,
       "required": ["kind"],
       "properties": {
-        "kind": { "enum": ["feed_snapshot", "website", "media_edge", "destination"] },
+        "kind": {
+          "type": "string",
+          "enum": ["feed_snapshot", "website", "media_edge", "destination"]
+        },
         "publicationTargetId": { "$ref": "#/$defs/uuid" },
         "destinationKey": {
           "description": "The destination's key, as data (for example `youtube`). Never a type.",
@@ -40,7 +43,7 @@
           "maxLength": 64
         }
       },
-      "if": { "properties": { "kind": { "const": "destination" } } },
+      "if": { "properties": { "kind": { "type": "string", "const": "destination" } } },
       "then": { "required": ["publicationTargetId", "destinationKey"] },
       "else": {
         "not": {
@@ -50,6 +53,7 @@
     },
     "result": {
       "description": "Owned outputs end in `delivered` or `failed`. Destinations use `submitted`, `confirmed`, `failed`, `manual_required`, or `withdrawn`.",
+      "type": "string",
       "enum": ["delivered", "failed", "submitted", "confirmed", "manual_required", "withdrawn"]
     },
     "attempt": { "type": "integer", "minimum": 1 },
@@ -75,7 +79,7 @@
       ],
       "properties": {
         "feedSnapshotId": { "$ref": "#/$defs/uuid" },
-        "variant": { "enum": ["public", "private_template"] },
+        "variant": { "type": "string", "enum": ["public", "private_template"] },
         "generation": { "type": "integer", "minimum": 1 },
         "objectKey": { "type": "string", "minLength": 1, "maxLength": 1024 },
         "sha256": { "$ref": "#/$defs/sha256" },
@@ -127,8 +131,11 @@
     {
       "if": {
         "properties": {
-          "output": { "type": "object", "properties": { "kind": { "const": "feed_snapshot" } } },
-          "result": { "const": "delivered" }
+          "output": {
+            "type": "object",
+            "properties": { "kind": { "type": "string", "const": "feed_snapshot" } }
+          },
+          "result": { "type": "string", "const": "delivered" }
         }
       },
       "then": { "required": ["feedSnapshot"] }
@@ -136,31 +143,38 @@
     {
       "if": {
         "properties": {
-          "output": { "type": "object", "properties": { "kind": { "const": "media_edge" } } },
-          "result": { "const": "delivered" }
+          "output": {
+            "type": "object",
+            "properties": { "kind": { "type": "string", "const": "media_edge" } }
+          },
+          "result": { "type": "string", "const": "delivered" }
         }
       },
       "then": { "required": ["edge"] }
     },
     {
-      "if": { "properties": { "result": { "const": "failed" } } },
+      "if": { "properties": { "result": { "type": "string", "const": "failed" } } },
       "then": { "required": ["error"] },
       "else": { "not": { "required": ["error"] } }
     },
     {
       "if": {
         "properties": {
-          "output": { "type": "object", "properties": { "kind": { "const": "destination" } } }
+          "output": {
+            "type": "object",
+            "properties": { "kind": { "type": "string", "const": "destination" } }
+          }
         }
       },
       "then": {
         "properties": {
           "result": {
+            "type": "string",
             "enum": ["submitted", "confirmed", "failed", "manual_required", "withdrawn"]
           }
         }
       },
-      "else": { "properties": { "result": { "enum": ["delivered", "failed"] } } }
+      "else": { "properties": { "result": { "type": "string", "enum": ["delivered", "failed"] } } }
     }
   ],
   "$defs": {

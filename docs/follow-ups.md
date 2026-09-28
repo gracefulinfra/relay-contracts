@@ -3,7 +3,7 @@
 Out-of-scope work noticed while implementing a slice. Add an entry instead of doing the work.
 Format: `- [ ] (<prompt that found it>) <what> — <why it matters>`.
 
-- [ ] (P0-01) Delete the placeholder `openapi/openapi.yaml` once real contracts land, and add client generation and a drift check to CI. The bootstrap smoke schema was removed in the first P0-04 PR. Owner: P0-04 (second PR).
+- [x] (P0-01) Delete the placeholder `openapi/openapi.yaml` once real contracts land, and add client generation and a drift check to CI. Done in P0-04 PR 2: `openapi/relay.v0.yaml`, `make generate`, and `make check-generated` in CI.
 - [ ] (P0-01) Run actionlint (with shellcheck) in CI. It currently runs only locally. Candidate: a shared reusable workflow. Owner: P1-19 or earlier.
 - [ ] (P0-02) Relay's analytics client-IP must be validated against trusted proxies; Castopod's is spoofable via X-Forwarded-For (inflates download counts). Owner: P1-17.
 - [ ] (P0-02) Ensure Relay premium/private media is served via signed, expiring URLs (fail-closed), never a public guessable path — Castopod redirects a valid token to a public unsigned URL. Owner: P3-03/P3-04.
@@ -18,3 +18,7 @@ Format: `- [ ] (<prompt that found it>) <what> — <why it matters>`.
 - [ ] (P0-08) Replace the assumed compute factors in `reports/cost-model/inputs.csv` (`audio_encode_`, `transcribe_`, `video_encode_cpu_h_per_media_h`) with the benchmarks from P1-06, P1-07, and P2-01, and regenerate the outputs. Owner: P1-06, P1-07, P2-01.
 - [ ] (P0-08) Re-check the Phase 1 tripwire (P1-01 to P1-11 merged within 16 weeks of 2026-09-28; the laptop within the `reports/phase-0.md` resource budget) and the budget. Re-run the gate as "narrow" if either fails. Owner: P1-11, P1-20.
 - [ ] (P0-08) Decide the $0-budget prerequisites listed in `reports/phase-0.md`: the hosted transcription provider (P1-07), an off-laptop backup target (P1-18), and a public URL for feed validators (P1-20). Owner: the project owner, before each prompt starts.
+- [ ] (P0-04) Enforce `x-relay-authz` in relay-api: a strict-server middleware reads each operation's minimum actor from `relayapi.GetSwagger()` and denies by default, with a test that every operation is covered. The generated stub does not enforce it. Owner: P1-02.
+- [ ] (P0-04) Add negative Spectral tests for `relay-operation-summary` and `relay-public-read-only` to `scripts/test-spectral-rules.mjs` (8 of the 10 `relay-*` rules are covered). Owner: P1-19 or earlier.
+- [ ] (P0-04) Grant relay-admin and relay-site read access to the `@gracefulinfra/relay-client` package (Settings → Manage Actions access) before their first install of it. Owner: P1-12, P1-14.
+- [ ] (P0-04) Write the exporter and a restore-from-export test against `schemas/export-index.schema.json` and `schemas/export-record.schema.json` (NDJSON per record type, checksummed media inventory, no secrets). Owner: P1-18 / P1-20.
