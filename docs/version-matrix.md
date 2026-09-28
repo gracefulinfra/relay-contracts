@@ -87,3 +87,14 @@ checks the official release documentation and adds a row above.
 | Astro                                  | 6                   | P1-14     |
 | React, Vite, TanStack Router and Query | —                   | P1-12     |
 | faster-whisper                         | —                   | P1-07     |
+
+## Portability rehearsal (pinned by P0-07)
+
+`relay-infra/scripts/portability` and `make portability` ([ADR-0008](../adr/0008-portability-rehearsal.md)). Verified on 2026-09-27.
+
+| Component                   | Pinned                                                                   | Where                                                        | Source                                                                              | Verified   |
+| --------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ---------- |
+| rclone (host tool)          | 1.75.1                                                                   | `relay-infra/scripts/lib.sh` `RCLONE_VERSION` (`go install`) | <https://github.com/rclone/rclone/releases> (latest, 2026-09-04)                    | 2026-09-27 |
+| rclone image (in-cluster)   | `docker.io/rclone/rclone:1.75.1` (`sha256:45401ad7…1019c7a5`, OCI index) | `relay-infra/scripts/portability/common.sh` `RCLONE_IMAGE`   | `docker buildx imagetools inspect`; tag must equal `RCLONE_VERSION`                 | 2026-09-27 |
+| age / age-keygen            | 1.3.2                                                                    | `relay-infra/scripts/lib.sh` `AGE_VERSION` (`go install`)    | <https://github.com/FiloSottile/age/releases> (latest, 2026-08-29)                  | 2026-09-27 |
+| SeaweedFS (external target) | same image as the S3 conformance suite (`SEAWEEDFS_IMAGE`)               | `relay-infra/Makefile`, started by `scripts/external-s3.sh`  | Same row as the conformance suite; tag must equal the chart in `platform/seaweedfs` | 2026-09-27 |
