@@ -32,6 +32,7 @@
   "properties": {
     "schemaVersion": {
       "description": "Major.minor version of this schema. Minor versions only add optional fields.",
+      "type": "string",
       "const": "1.0"
     },
     "manifestId": { "$ref": "#/$defs/uuid" },
@@ -42,6 +43,7 @@
     },
     "kind": {
       "description": "`release` for the first publish; `correction` for every later manifest, including a republish.",
+      "type": "string",
       "enum": ["release", "correction"]
     },
     "previousManifestId": {
@@ -104,18 +106,21 @@
       "properties": {
         "accessClass": {
           "description": "Who may receive this release (decision A10): anonymous listeners, signed-in free accounts, or paid entitlements.",
+          "type": "string",
           "enum": ["public", "registered", "paid"]
         },
         "edition": {
           "description": "Which edition of the episode this manifest releases. Each edition has its own manifests.",
+          "type": "string",
           "enum": ["standard", "ad_free", "bonus"]
         },
         "requiredEntitlement": {
           "description": "The entitlement feature a paid release requires.",
+          "type": "string",
           "enum": ["ad_free", "private_feed", "bonus_content", "extras"]
         }
       },
-      "if": { "properties": { "accessClass": { "const": "paid" } } },
+      "if": { "properties": { "accessClass": { "type": "string", "const": "paid" } } },
       "then": { "required": ["requiredEntitlement"] },
       "else": { "not": { "required": ["requiredEntitlement"] } }
     },
@@ -160,7 +165,7 @@
           "required": ["revisionId", "source", "language", "approvalId", "assetIds"],
           "properties": {
             "revisionId": { "$ref": "#/$defs/uuid" },
-            "source": { "enum": ["whisper", "hosted", "manual"] },
+            "source": { "type": "string", "enum": ["whisper", "hosted", "manual"] },
             "language": { "$ref": "#/$defs/language" },
             "approvalId": { "$ref": "#/$defs/uuid" },
             "assetIds": {
@@ -204,7 +209,7 @@
         "required": ["rightsRecordId", "subject", "license", "attribution"],
         "properties": {
           "rightsRecordId": { "$ref": "#/$defs/uuid" },
-          "subject": { "enum": ["music", "guest_release", "image", "license"] },
+          "subject": { "type": "string", "enum": ["music", "guest_release", "image", "license"] },
           "license": {
             "description": "An SPDX or Creative Commons identifier (for example CC-BY-4.0), or `custom`.",
             "type": "string",
@@ -222,7 +227,7 @@
       "minItems": 1,
       "contains": {
         "type": "object",
-        "properties": { "subjectType": { "const": "episode_revision" } },
+        "properties": { "subjectType": { "type": "string", "const": "episode_revision" } },
         "required": ["subjectType"]
       },
       "items": {
@@ -232,6 +237,7 @@
         "properties": {
           "approvalId": { "$ref": "#/$defs/uuid" },
           "subjectType": {
+            "type": "string",
             "enum": ["episode_revision", "transcript_revision", "chapter_set", "rights_record"]
           },
           "subjectId": { "$ref": "#/$defs/uuid" },
@@ -253,7 +259,7 @@
         "properties": {
           "markerId": { "$ref": "#/$defs/uuid" },
           "assetId": { "$ref": "#/$defs/uuid" },
-          "position": { "enum": ["pre", "mid", "post"] },
+          "position": { "type": "string", "enum": ["pre", "mid", "post"] },
           "offsetMs": { "type": "integer", "minimum": 0 },
           "maxDurationMs": { "type": "integer", "minimum": 1 }
         }
@@ -266,7 +272,7 @@
       "additionalProperties": false,
       "required": ["actorType", "actorId"],
       "properties": {
-        "actorType": { "enum": ["staff", "system"] },
+        "actorType": { "type": "string", "enum": ["staff", "system"] },
         "actorId": { "$ref": "#/$defs/uuid" }
       }
     }
@@ -275,11 +281,14 @@
     {
       "if": { "properties": { "sequence": { "const": 1 } } },
       "then": {
-        "properties": { "kind": { "const": "release" }, "previousManifestId": { "type": "null" } }
+        "properties": {
+          "kind": { "type": "string", "const": "release" },
+          "previousManifestId": { "type": "null" }
+        }
       },
       "else": {
         "properties": {
-          "kind": { "const": "correction" },
+          "kind": { "type": "string", "const": "correction" },
           "previousManifestId": { "$ref": "#/$defs/uuid" }
         }
       }
@@ -338,10 +347,12 @@
         "version": { "type": "integer", "minimum": 1 },
         "role": {
           "description": "What the file is for. Masters are never released, so `master` is not allowed here.",
+          "type": "string",
           "enum": ["rendition", "caption", "thumbnail", "transcript", "chapters", "artwork"]
         },
         "format": {
           "description": "How the file is encoded. Separate from role, so one schema covers audio, video, and premium editions.",
+          "type": "string",
           "enum": [
             "mp3",
             "aac_m4a",
@@ -359,7 +370,7 @@
             "webp"
           ]
         },
-        "edition": { "enum": ["standard", "ad_free", "bonus"] },
+        "edition": { "type": "string", "enum": ["standard", "ad_free", "bonus"] },
         "mime": { "$ref": "#/$defs/mime" },
         "bytes": { "type": "integer", "minimum": 1 },
         "sha256": { "$ref": "#/$defs/sha256" },
@@ -378,17 +389,24 @@
         {
           "if": {
             "properties": {
-              "format": { "enum": ["mp3", "aac_m4a", "opus", "hls_master", "hls_media", "mp4"] }
+              "format": {
+                "type": "string",
+                "enum": ["mp3", "aac_m4a", "opus", "hls_master", "hls_media", "mp4"]
+              }
             }
           },
           "then": { "required": ["durationMs"] }
         },
         {
-          "if": { "properties": { "role": { "enum": ["caption", "transcript"] } } },
+          "if": {
+            "properties": { "role": { "type": "string", "enum": ["caption", "transcript"] } }
+          },
           "then": { "required": ["language"] }
         },
         {
-          "if": { "properties": { "role": { "enum": ["thumbnail", "artwork"] } } },
+          "if": {
+            "properties": { "role": { "type": "string", "enum": ["thumbnail", "artwork"] } }
+          },
           "then": { "required": ["width", "height"] }
         }
       ]
@@ -400,7 +418,7 @@
       "properties": {
         "personId": { "$ref": "#/$defs/uuid" },
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "role": { "enum": ["host", "guest", "producer", "other"] },
+        "role": { "type": "string", "enum": ["host", "guest", "producer", "other"] },
         "href": { "$ref": "#/$defs/httpsUrl" },
         "imageUrl": { "$ref": "#/$defs/httpsUrl" }
       }
@@ -443,7 +461,7 @@
               "description": "SHA-256 of notesHtml as UTF-8.",
               "$ref": "#/$defs/sha256"
             },
-            "episodeType": { "enum": ["full", "trailer", "bonus"] },
+            "episodeType": { "type": "string", "enum": ["full", "trailer", "bonus"] },
             "seasonNumber": { "type": "integer", "minimum": 1 },
             "episodeNumber": { "type": "integer", "minimum": 1 },
             "explicit": { "type": "boolean" },

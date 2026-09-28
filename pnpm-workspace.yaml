@@ -1,3 +1,6 @@
+packages:
+  - clients/ts
+
 # Dependency build scripts are denied unless listed here with a reason.
 allowBuilds:
   # Install-time telemetry pulled in by Spectral; not needed.

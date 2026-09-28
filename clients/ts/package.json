@@ -1,0 +1,48 @@
+{
+  "name": "@gracefulinfra/relay-client",
+  "version": "0.1.0",
+  "description": "Typed TypeScript client for the Relay API, generated from relay-contracts OpenAPI v0.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gracefulinfra/relay-contracts.git",
+    "directory": "clients/ts"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../gen/openapi/relay.v0.json -o src/generated/relay.v0.ts && prettier --write src/generated",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.1"
+  }
+}

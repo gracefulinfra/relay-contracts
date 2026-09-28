@@ -1,0 +1,13 @@
+# oapi-codegen configuration for the Relay API server stub. The version is pinned in the Makefile
+# (OAPI_CODEGEN_VERSION); run `make generate`, never the generator directly.
+package: relayapi
+output: relayapi/relay.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  # Optional and nullable fields (JSON Merge Patch bodies) use nullable.Nullable[T], so "absent"
+  # and "null" stay distinguishable.
+  nullable-type: true

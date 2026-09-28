@@ -1,0 +1,4288 @@
+openapi: 3.1.1
+info:
+  title: Relay API
+  version: 0.1.0
+  summary: Staff and public published-content API for the Relay podcast network platform.
+  description: |
+    OpenAPI v0 covers the **Phase 1** surface (P0-04): catalog CRUD, resumable uploads, processing
+    status, transcripts, notes and chapters, approvals and rights, scheduling and publishing, feed
+    preview, jobs, the audit-events read API, full export, and the public published-content API.
+    Phase 2–3 entities are modelled in `model/erd.md` but have no endpoints yet.
+
+    ## Conventions
+
+    - **Errors** are `application/problem+json` (RFC 9457). `type` is a URI under
+      `https://relay.dev/problems/`, and `code` is a stable machine-readable string.
+      Disallowed state transitions return `409` with type `…/problems/invalid-transition`
+      (`model/state-machines.md`).
+    - **Pagination** is cursor-based. List operations take `cursor` and `limit`, and return
+      `{items, nextCursor}`. `nextCursor` is `null` on the last page. Cursors are opaque.
+    - **Idempotency.** Every mutating operation (`POST`, `PUT`, `PATCH`, `DELETE`) requires an
+      `Idempotency-Key` header. A replay with the same key and body returns the original response.
+      The same key with a different body returns `409` with type
+      `…/problems/idempotency-key-reused`. Keys are kept for 24 hours.
+    - **Optimistic concurrency.** Mutable resources return an `ETag`. `PATCH`, `PUT`, and `DELETE` on
+      them require `If-Match` (`428` if missing, `412` if stale).
+    - **Partial updates** use JSON Merge Patch (RFC 7396): an absent field is unchanged, and `null`
+      clears a nullable field.
+    - **Identifiers** are lowercase UUIDs, except the episode `guid`, which is an opaque string
+      (ADR 0006). Timestamps are RFC 3339 UTC with `Z`. Durations are integer milliseconds and sizes
+      are integer bytes.
+    - **Authorization.** Staff operations use OIDC bearer tokens from the `relay-staff` realm.
+      Authorization lives in the API (decision A9). Each operation declares the minimum actor in
+      `x-relay-authz` (`model/state-machines.md`, "Actors"): `staff` (any signed-in staff user),
+      `viewer+`, `producer+`, `editor+` (grants on the operation's show), or `admin`
+      (`networkAdmin`). Operations under `/public` are anonymous and never vary by credentials.
+    - **Caching.** Public responses are cacheable and carry no personal data. Staff responses are
+      `Cache-Control: private, no-store`. The two never share cache entries.
+  contact:
+    name: Relay maintainers
+    url: https://github.com/gracefulinfra/relay-contracts
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://api.relay.localtest.me/v0
+    description: Local k3d environment (relay-infra `make up`)
+  - url: http://localhost:8080/v0
+    description: relay-api running outside the cluster
+security:
+  - staffOidc: []
+tags:
+  - name: me
+    description: The signed-in staff user.
+  - name: network
+    description: The single network (tenant) and its defaults.
+  - name: access
+    description: Staff users and show-scoped role grants (P1-02).
+  - name: shows
+  - name: seasons
+    description: Optional grouping of episodes inside a show.
+  - name: episodes
+    description: >-
+      Episode identity, publication status, readiness, scheduling, and publishing. The four state
+      dimensions are described in `model/state-machines.md`.
+  - name: revisions
+    description: Editable episode content and its review workflow (state machine §2).
+  - name: notes
+    description: Show-notes rendering (TipTap JSON to sanitized HTML and Markdown, decision A15).
+  - name: people
+  - name: topics
+  - name: rights
+    description: Rights and licence clearance that gates readiness.
+  - name: approvals
+    description: The immutable record of editorial decisions.
+  - name: media
+    description: >-
+      Media asset versions and their processing state (state machine §3). Uploads use the
+      [tus 1.0 protocol](https://tus.io/protocols/resumable-upload). This API creates an upload
+      session and returns its tus URL. The tus requests themselves (`HEAD`, `PATCH`, `DELETE` on the
+      upload URL) are served by `tusd` inside relay-api, and are not part of this document.
+  - name: transcripts
+    description: Transcript revisions (state machine §4). Machine output is always a draft.
+  - name: chapters
+  - name: jobs
+    description: Durable background work (River dispatch, Argo execution).
+  - name: publishing
+    description: Release manifests, delivery receipts, and per-output delivery state.
+  - name: distribution
+    description: Destinations and publication targets (state machine §5).
+  - name: feeds
+  - name: audit
+  - name: exports
+    description: >-
+      Full, versioned export (`schemas/export-index.schema.json` and
+      `schemas/export-record.schema.json`). Secrets are never exported.
+  - name: public
+    description: >-
+      Anonymous published-content API for relay-site. Everything is built from release manifests,
+      so it never shows unreleased content.
+
+paths:
+  # ---------------------------------------------------------------- me, network, access
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: The signed-in staff user and their grants
+      x-relay-authz: staff
+      responses:
+        "200":
+          description: The staff user, created on first sign-in from the OIDC subject.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /network:
+    get:
+      operationId: getNetwork
+      tags: [network]
+      summary: Get the network
+      x-relay-authz: staff
+      responses:
+        "200":
+          description: The network.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Network" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateNetwork
+      tags: [network]
+      summary: Update network defaults
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/NetworkUpdate" }
+      responses:
+        "200":
+          description: The updated network.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Network" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /staff-users:
+    get:
+      operationId: listStaffUsers
+      tags: [access]
+      summary: List staff users
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of staff users.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffUserPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /shows/{showId}/grants:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: listShowGrants
+      tags: [access]
+      summary: List role grants on a show
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of grants.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShowRoleGrantPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /shows/{showId}/grants/{staffUserId}:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+      - $ref: "#/components/parameters/StaffUserId"
+    put:
+      operationId: putShowGrant
+      tags: [access]
+      summary: Grant or change a staff user's role on a show
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShowRoleGrantPut" }
+      responses:
+        "200":
+          description: The grant.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShowRoleGrant" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteShowGrant
+      tags: [access]
+      summary: Revoke a staff user's role on a show
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204": { description: Revoked. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- shows and seasons
+  /shows:
+    get:
+      operationId: listShows
+      tags: [shows]
+      summary: List shows the caller can see
+      description: Admins see every show. Other staff see the shows they hold a grant on.
+      x-relay-authz: staff
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ShowStatus" }
+      responses:
+        "200":
+          description: A page of shows.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShowPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createShow
+      tags: [shows]
+      summary: Create a show
+      description: >-
+        Computes the show's `podcastGuid` once, from its first canonical feed URL (ADR 0006 G8), or
+        keeps the given one for an imported show.
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShowCreate" }
+      responses:
+        "201":
+          description: The created show.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Show" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /shows/{showId}:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: getShow
+      tags: [shows]
+      summary: Get a show
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The show.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Show" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateShow
+      tags: [shows]
+      summary: Update a show
+      description: >-
+        `podcastGuid` is read-only. Changing `requireSeparateApprover` needs `admin` and is audited.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/ShowUpdate" }
+      responses:
+        "200":
+          description: The updated show.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Show" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /shows/{showId}/seasons:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: listSeasons
+      tags: [seasons]
+      summary: List a show's seasons
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of seasons, ordered by number.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SeasonPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createSeason
+      tags: [seasons]
+      summary: Create a season
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SeasonCreate" }
+      responses:
+        "201":
+          description: The created season.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /seasons/{seasonId}:
+    parameters:
+      - $ref: "#/components/parameters/SeasonId"
+    get:
+      operationId: getSeason
+      tags: [seasons]
+      summary: Get a season
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The season.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateSeason
+      tags: [seasons]
+      summary: Update a season
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/SeasonUpdate" }
+      responses:
+        "200":
+          description: The updated season.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteSeason
+      tags: [seasons]
+      summary: Delete an empty season
+      description: Only a season with no episodes can be deleted (`409` otherwise).
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- episodes
+  /shows/{showId}/episodes:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: listEpisodes
+      tags: [episodes]
+      summary: List a show's episodes
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: publicationStatus
+          in: query
+          schema: { $ref: "#/components/schemas/PublicationStatus" }
+        - name: readiness
+          in: query
+          schema: { $ref: "#/components/schemas/ReadinessState" }
+        - name: seasonId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+      responses:
+        "200":
+          description: A page of episodes, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodePage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createEpisode
+      tags: [episodes]
+      summary: Create an episode and its first draft revision
+      description: >-
+        Generates the permanent GUID (a UUIDv4, ADR 0006 G1) and the first revision in `draft` (R1).
+        The GUID is read-only from then on. Imported GUIDs arrive through catalog import (P1-16), not
+        this operation.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EpisodeCreate" }
+      responses:
+        "201":
+          description: The created episode.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: getEpisode
+      tags: [episodes]
+      summary: Get an episode with every state dimension
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The episode.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteEpisode
+      tags: [episodes]
+      summary: Delete an episode that was never released
+      description: >-
+        Allowed only while the episode has no release manifest. A tombstone keeps the GUID so it is
+        never reused (ADR 0006 G3). Released episodes are unpublished instead.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204": { description: "Deleted, and the GUID is tombstoned." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/readiness:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: getEpisodeReadiness
+      tags: [episodes]
+      summary: Compute readiness for the candidate revision
+      description: >-
+        Returns every blocking reason, not only the first. Without `revisionId`, the candidate is
+        the episode's open revision.
+      x-relay-authz: viewer+
+      parameters:
+        - name: revisionId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+      responses:
+        "200":
+          description: The readiness result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/topics:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    put:
+      operationId: putEpisodeTopics
+      tags: [episodes, topics]
+      summary: Replace the episode's topics
+      description: Topics take effect in the next release manifest.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EpisodeTopics" }
+      responses:
+        "200":
+          description: The episode's topics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeTopics" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/schedule:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    put:
+      operationId: scheduleEpisode
+      tags: [episodes]
+      summary: Schedule or reschedule a release (P1, P2, P10)
+      description: >-
+        Increments `scheduleGeneration`, so any older scheduled job becomes a no-op. The revision
+        must be `approved` and readiness `ready` now. Readiness is checked again when the schedule
+        fires (P5).
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleRequest" }
+      responses:
+        "200":
+          description: The episode, with its pending schedule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: cancelEpisodeSchedule
+      tags: [episodes]
+      summary: Cancel the pending schedule (P3, P10)
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The episode, with no pending schedule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/publish:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    post:
+      operationId: publishEpisode
+      tags: [episodes, publishing]
+      summary: Publish now (P4), publish a correction (P9), or republish (P12)
+      description: >-
+        Creates the immutable release manifest and enqueues the output jobs in one transaction. The
+        episode moves to `publishing`, and to `published` once the owned outputs are verified (P6).
+        Republishing an `unpublished` episode needs `admin`.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishRequest" }
+      responses:
+        "202":
+          description: The manifest was created and delivery has started.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishAccepted" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/unpublish:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    post:
+      operationId: unpublishEpisode
+      tags: [episodes, publishing]
+      summary: Unpublish a released episode (P11)
+      description: >-
+        Removes the item from the feed and site. For `rights` and `legal` reasons the media URLs
+        return `410` at once (ADR 0006 V9). The GUID is kept and never reused.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnpublishRequest" }
+      responses:
+        "202":
+          description: Unpublishing has started.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/abandon-release:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    post:
+      operationId: abandonFirstRelease
+      tags: [episodes, publishing]
+      summary: Abandon a first release that delivered nothing (P8)
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Note" }
+      responses:
+        "200":
+          description: The episode, back in `unreleased`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Episode" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- revisions
+  /episodes/{episodeId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listRevisions
+      tags: [revisions]
+      summary: List an episode's revisions
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of revisions, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevisionPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createRevision
+      tags: [revisions]
+      summary: Start a new draft (R1) or correction draft (R2)
+      description: >-
+        The server chooses the kind: `initial` for an unreleased episode, `correction` once a
+        manifest exists. A correction copies the released revision. Fails with `409` if the episode
+        already has an open revision.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevisionCreate" }
+      responses:
+        "201":
+          description: The new revision.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    get:
+      operationId: getRevision
+      tags: [revisions]
+      summary: Get a revision
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The revision.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateRevision
+      tags: [revisions]
+      summary: Edit a draft or correction draft
+      description: >-
+        Allowed only in `draft` and `correction_draft`. A revision is frozen once submitted (R3), so
+        edits after that return `409`.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/RevisionUpdate" }
+      responses:
+        "200":
+          description: The updated revision.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/submit:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: submitRevision
+      tags: [revisions]
+      summary: Submit for review (R3)
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The revision, now `in_review` and frozen.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/request-changes:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: requestRevisionChanges
+      tags: [revisions]
+      summary: Request changes (R4)
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Comment" }
+      responses:
+        "200":
+          description: The revision, now `changes_requested`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/revise:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: reviseRevision
+      tags: [revisions]
+      summary: Start a new draft from a revision with changes requested (R5)
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "201":
+          description: The new draft revision. The reviewed one stays as history.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: approveRevision
+      tags: [revisions, approvals]
+      summary: Approve (R6)
+      description: >-
+        Requires the selected transcript revision and chapter set to be approved, and the separate
+        approver rule to hold (`409` otherwise). Records an `Approval`.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptionalComment" }
+      responses:
+        "200":
+          description: The revision, now `approved`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/withdraw-approval:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: withdrawRevisionApproval
+      tags: [revisions, approvals]
+      summary: Withdraw an approval before release (R11)
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Reason" }
+      responses:
+        "200":
+          description: The revision, back `in_review`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /revisions/{revisionId}/discard:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      operationId: discardRevision
+      tags: [revisions]
+      summary: Discard a draft that was never released (R10)
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The revision, now `discarded`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpisodeRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- notes
+  /notes/render:
+    post:
+      operationId: renderNotes
+      tags: [notes]
+      summary: Render show notes to sanitized HTML and Markdown
+      description: >-
+        A pure function with no side effects, used for previews. Release uses the same renderer and
+        pins the resulting HTML and its SHA-256 in the manifest.
+      x-relay-authz: staff
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotesRenderRequest" }
+      responses:
+        "200":
+          description: The rendered notes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotesRenderResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- people and topics
+  /people:
+    get:
+      operationId: listPeople
+      tags: [people]
+      summary: List people
+      x-relay-authz: staff
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: q
+          in: query
+          description: Case-insensitive prefix match on display name or slug.
+          schema: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: A page of people.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PersonPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPerson
+      tags: [people]
+      summary: Create a person
+      description: Any staff user with `producer` on at least one show may create people.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PersonCreate" }
+      responses:
+        "201":
+          description: The created person.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /people/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      operationId: getPerson
+      tags: [people]
+      summary: Get a person
+      x-relay-authz: staff
+      responses:
+        "200":
+          description: The person.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePerson
+      tags: [people]
+      summary: Update a person
+      description: Changes appear in feeds only through the next release of each episode.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/PersonUpdate" }
+      responses:
+        "200":
+          description: The updated person.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /topics:
+    get:
+      operationId: listTopics
+      tags: [topics]
+      summary: List topics
+      x-relay-authz: staff
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of topics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TopicPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createTopic
+      tags: [topics]
+      summary: Create a topic
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TopicCreate" }
+      responses:
+        "201":
+          description: The created topic.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Topic" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /topics/{topicId}:
+    parameters:
+      - $ref: "#/components/parameters/TopicId"
+    patch:
+      operationId: updateTopic
+      tags: [topics]
+      summary: Update a topic
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/TopicUpdate" }
+      responses:
+        "200":
+          description: The updated topic.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Topic" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- rights and approvals
+  /episodes/{episodeId}/rights:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listRightsRecords
+      tags: [rights]
+      summary: List an episode's rights records
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of rights records.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RightsRecordPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createRightsRecord
+      tags: [rights]
+      summary: Add a rights record
+      description: New records start `pending` and block readiness until cleared.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RightsRecordCreate" }
+      responses:
+        "201":
+          description: The created record.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RightsRecord" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /rights/{rightsRecordId}:
+    parameters:
+      - $ref: "#/components/parameters/RightsRecordId"
+    get:
+      operationId: getRightsRecord
+      tags: [rights]
+      summary: Get a rights record
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The record.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RightsRecord" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateRightsRecord
+      tags: [rights]
+      summary: Update a rights record
+      description: Any change to a `cleared` record returns it to `pending`.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/RightsRecordUpdate" }
+      responses:
+        "200":
+          description: The updated record.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RightsRecord" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /rights/{rightsRecordId}/decision:
+    parameters:
+      - $ref: "#/components/parameters/RightsRecordId"
+    post:
+      operationId: decideRightsRecord
+      tags: [rights, approvals]
+      summary: Clear or restrict a rights record
+      description: Records an `Approval` with subject type `rights_record`.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RightsDecision" }
+      responses:
+        "200":
+          description: The record, now `cleared` or `restricted`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RightsRecord" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /rights/{rightsRecordId}/document:
+    parameters:
+      - $ref: "#/components/parameters/RightsRecordId"
+    post:
+      operationId: createRightsDocumentUpload
+      tags: [rights, media]
+      summary: Start a tus upload of the rights document
+      description: The document is stored in a private bucket and never published.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentUploadCreate" }
+      responses:
+        "201":
+          description: The upload session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /approvals:
+    get:
+      operationId: listApprovals
+      tags: [approvals]
+      summary: List approvals for a subject
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: subjectType
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/ApprovalSubjectType" }
+        - name: subjectId
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/Id" }
+      responses:
+        "200":
+          description: A page of approvals, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- media and uploads
+  /episodes/{episodeId}/uploads:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    post:
+      operationId: createUpload
+      tags: [media]
+      summary: Start a resumable (tus) upload of a new media version (M1)
+      description: >-
+        Creates a `MediaAsset` in `uploading` and returns its tus upload URL. Pass `lineageId` to
+        upload a replacement version of an existing asset. Replacement is always a new version, never
+        an overwrite (ADR 0006 V1). When tus reports the upload complete, the server computes SHA-256
+        and enqueues the probe (M2, M5).
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadCreate" }
+      responses:
+        "201":
+          description: The upload session.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/ContentTooLarge" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/assets:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listEpisodeAssets
+      tags: [media]
+      summary: List an episode's media asset versions and their processing state
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: role
+          in: query
+          schema: { $ref: "#/components/schemas/AssetRole" }
+        - name: lineageId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: processingState
+          in: query
+          schema: { $ref: "#/components/schemas/ProcessingState" }
+      responses:
+        "200":
+          description: A page of asset versions, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaAssetPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /assets/{assetId}:
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    get:
+      operationId: getAsset
+      tags: [media]
+      summary: Get one media asset version
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The asset version.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaAsset" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /assets/{assetId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    post:
+      operationId: retryAsset
+      tags: [media, jobs]
+      summary: Retry a failed derived asset (M11)
+      description: Reuses the same job ID, so output is never duplicated.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: The asset, back in `queued`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaAsset" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /assets/{assetId}/takedown:
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    post:
+      operationId: takedownAsset
+      tags: [media]
+      summary: Purge a version at once for rights or legal reasons (M14)
+      description: >-
+        The edge returns `410 Gone` for the version's URL and caches are purged (ADR 0006 V9). The
+        row, its SHA-256, and its size stay for export and audit.
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TakedownRequest" }
+      responses:
+        "202":
+          description: The asset, now `purged`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaAsset" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- transcripts
+  /episodes/{episodeId}/transcripts:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listTranscriptRevisions
+      tags: [transcripts]
+      summary: List an episode's transcript revisions
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/TranscriptState" }
+      responses:
+        "200":
+          description: A page of transcript revisions, newest first. Segments are omitted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevisionPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: requestTranscription
+      tags: [transcripts]
+      summary: Request machine transcription (T1)
+      description: >-
+        Starts a `pending` revision for one exact source asset version, using the self-hosted or the
+        hosted provider. The output is always a `draft`. Publishing never waits for it.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TranscriptionRequest" }
+      responses:
+        "202":
+          description: The pending revision.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevision" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/transcripts/manual:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    post:
+      operationId: uploadManualTranscript
+      tags: [transcripts]
+      summary: Upload a transcript file as a draft (T2)
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualTranscript" }
+      responses:
+        "201":
+          description: The draft revision, parsed into segments.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevisionDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/ContentTooLarge" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /transcripts/{transcriptRevisionId}:
+    parameters:
+      - $ref: "#/components/parameters/TranscriptRevisionId"
+    get:
+      operationId: getTranscriptRevision
+      tags: [transcripts]
+      summary: Get a transcript revision with its segments
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The revision and its segments.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevisionDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateTranscriptRevision
+      tags: [transcripts]
+      summary: Edit a draft transcript (T6)
+      description: >-
+        Replaces the segments of a `draft`. Each save increments `draftVersion`. Returns `409` once the
+        revision has left `draft`.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/TranscriptUpdate" }
+      responses:
+        "200":
+          description: The updated draft.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevisionDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /transcripts/{transcriptRevisionId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/TranscriptRevisionId"
+    post:
+      operationId: approveTranscriptRevision
+      tags: [transcripts, approvals]
+      summary: Approve a reviewed transcript (T7)
+      description: >-
+        Records an `Approval` and renders the transcript and caption files as new asset versions.
+        A human must approve machine output before it can be released (architecture rule 6).
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptionalComment" }
+      responses:
+        "200":
+          description: The revision, now `approved`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /transcripts/{transcriptRevisionId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/TranscriptRevisionId"
+    post:
+      operationId: rejectTranscriptRevision
+      tags: [transcripts, approvals]
+      summary: Reject a draft transcript (T8)
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Reason" }
+      responses:
+        "200":
+          description: The revision, now `rejected`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevision" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /transcripts/{transcriptRevisionId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/TranscriptRevisionId"
+    post:
+      operationId: retryTranscription
+      tags: [transcripts, jobs]
+      summary: Retry a failed machine transcription (T5)
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: The revision, back in `pending`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TranscriptRevision" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- chapters
+  /episodes/{episodeId}/chapter-sets:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listChapterSets
+      tags: [chapters]
+      summary: List an episode's chapter sets
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of chapter sets, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChapterSetPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createChapterSet
+      tags: [chapters]
+      summary: Create a draft chapter set timed against one media version
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChapterSetCreate" }
+      responses:
+        "201":
+          description: The draft chapter set.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChapterSet" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /chapter-sets/{chapterSetId}:
+    parameters:
+      - $ref: "#/components/parameters/ChapterSetId"
+    get:
+      operationId: getChapterSet
+      tags: [chapters]
+      summary: Get a chapter set
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The chapter set.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChapterSet" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateChapterSet
+      tags: [chapters]
+      summary: Edit a draft chapter set
+      description: Returns `409` once the set is approved. Approved sets are immutable.
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/ChapterSetUpdate" }
+      responses:
+        "200":
+          description: The updated chapter set.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChapterSet" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "412": { $ref: "#/components/responses/PreconditionFailed" }
+        "428": { $ref: "#/components/responses/PreconditionRequired" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /chapter-sets/{chapterSetId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/ChapterSetId"
+    post:
+      operationId: approveChapterSet
+      tags: [chapters, approvals]
+      summary: Approve a chapter set
+      description: Records an `Approval` and renders the `podcast:chapters` JSON as a new asset version.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptionalComment" }
+      responses:
+        "200":
+          description: The chapter set, now `approved`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChapterSet" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- jobs
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List processing jobs
+      description: Staff see jobs on shows they hold a grant on.
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: showId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: subjectId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/JobKind" }
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/JobState" }
+      responses:
+        "200":
+          description: A page of jobs, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcessingJobPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a processing job
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The job.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcessingJob" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /jobs/{jobId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      operationId: retryJob
+      tags: [jobs]
+      summary: Retry a failed job with the same job ID
+      x-relay-authz: producer+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: The job, back in `queued`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcessingJob" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- publishing and distribution
+  /episodes/{episodeId}/manifests:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listReleaseManifests
+      tags: [publishing]
+      summary: List an episode's release manifests
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of manifests, newest sequence first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReleaseManifestRecordPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /manifests/{manifestId}:
+    parameters:
+      - $ref: "#/components/parameters/ManifestId"
+    get:
+      operationId: getReleaseManifest
+      tags: [publishing]
+      summary: Get one immutable release manifest
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The manifest and the SHA-256 of its canonical JSON.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReleaseManifestRecord" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /manifests/{manifestId}/receipts:
+    parameters:
+      - $ref: "#/components/parameters/ManifestId"
+    get:
+      operationId: listDeliveryReceipts
+      tags: [publishing]
+      summary: List the delivery receipts for a manifest
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of receipts, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryReceiptPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/delivery:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: getEpisodeDelivery
+      tags: [publishing, distribution]
+      summary: Per-output delivery state for the current manifest
+      description: >-
+        Derived from delivery receipts and publication targets (state machine §5). Answers
+        "published here", "submitted there", and "confirmed available there" separately.
+      x-relay-authz: viewer+
+      responses:
+        "200":
+          description: The delivery state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /destinations:
+    get:
+      operationId: listDestinations
+      tags: [distribution]
+      summary: List destinations and their capability matrix
+      x-relay-authz: staff
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of destinations.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DestinationPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /episodes/{episodeId}/publication-targets:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: listPublicationTargets
+      tags: [distribution]
+      summary: List an episode's publication targets
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of publication targets.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicationTargetPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /publication-targets/{publicationTargetId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/PublicationTargetId"
+    post:
+      operationId: retryPublicationTarget
+      tags: [distribution]
+      summary: Retry a submission now (D6)
+      description: Uses the idempotency key `{targetId}:{manifestId}`, so the episode is never duplicated.
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: The target, now `submitted`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicationTarget" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /publication-targets/{publicationTargetId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/PublicationTargetId"
+    post:
+      operationId: confirmPublicationTarget
+      tags: [distribution]
+      summary: Record a manual confirmation of availability (D8)
+      x-relay-authz: editor+
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualConfirmation" }
+      responses:
+        "200":
+          description: The target, now `confirmed`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicationTarget" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- feeds
+  /shows/{showId}/feed/preview:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: previewFeed
+      tags: [feeds]
+      summary: Render the show's feed without publishing it
+      description: >-
+        Renders RSS from the current release manifests. With `revisionId`, also renders that
+        approved candidate revision as if it were released now. Nothing is written to object storage.
+      x-relay-authz: viewer+
+      parameters:
+        - name: revisionId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+      responses:
+        "200":
+          description: The rendered RSS document.
+          content:
+            application/rss+xml:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /shows/{showId}/feed/snapshots:
+    parameters:
+      - $ref: "#/components/parameters/ShowId"
+    get:
+      operationId: listFeedSnapshots
+      tags: [feeds]
+      summary: List the feed snapshots written to object storage
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of snapshots, newest generation first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeedSnapshotPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- audit
+  /audit-events:
+    get:
+      operationId: listAuditEvents
+      tags: [audit]
+      summary: Read audit events
+      description: >-
+        Without `showId`, needs `admin`. With `showId`, needs a grant on that show. Diffs are redacted
+        (no tokens, signed URLs, or personal data).
+      x-relay-authz: viewer+
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: showId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: subjectType
+          in: query
+          schema: { type: string, pattern: "^[a-z_]+$", maxLength: 64 }
+        - name: subjectId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: actorId
+          in: query
+          schema: { $ref: "#/components/schemas/Id" }
+        - name: action
+          in: query
+          description: Exact action, or a prefix ending in `.`, for example `episode.`.
+          schema: { type: string, pattern: "^[a-z_]+(\\.[a-z_]+)*\\.?$", maxLength: 128 }
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+        - name: until
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: A page of audit events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEventPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- exports
+  /exports:
+    get:
+      operationId: listExports
+      tags: [exports]
+      summary: List exports
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of exports, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createExport
+      tags: [exports]
+      summary: Start a full export of the network
+      description: >-
+        Writes a versioned archive (`schemas/export-index.schema.json`) to the private backups bucket.
+        It never contains secrets. Those move through the recovery procedure (P0-07, ADR 0008).
+      x-relay-authz: admin
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExportCreate" }
+      responses:
+        "202":
+          description: The export, `queued`.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Export" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /exports/{exportId}:
+    parameters:
+      - $ref: "#/components/parameters/ExportId"
+    get:
+      operationId: getExport
+      tags: [exports]
+      summary: Get an export
+      x-relay-authz: admin
+      responses:
+        "200":
+          description: The export.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Export" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /exports/{exportId}/download:
+    parameters:
+      - $ref: "#/components/parameters/ExportId"
+    get:
+      operationId: downloadExport
+      tags: [exports]
+      summary: Redirect to a short-lived signed URL for a finished export
+      x-relay-authz: admin
+      responses:
+        "303":
+          description: >-
+            See the signed URL. It expires after 15 minutes, and is never logged (conventions:
+            redaction).
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- public published content
+  /public/network:
+    get:
+      operationId: getPublicNetwork
+      tags: [public]
+      summary: The network's public profile
+      security: []
+      x-relay-authz: public
+      responses:
+        "200":
+          description: The network.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicNetwork" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /public/shows:
+    get:
+      operationId: listPublicShows
+      tags: [public]
+      summary: List active shows
+      security: []
+      x-relay-authz: public
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of shows.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicShowPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /public/shows/{showSlug}:
+    parameters:
+      - $ref: "#/components/parameters/ShowSlug"
+    get:
+      operationId: getPublicShow
+      tags: [public]
+      summary: Get a show by its current slug
+      description: >-
+        A slug that the show used before returns `301` to the current one, so old site links keep
+        working.
+      security: []
+      x-relay-authz: public
+      responses:
+        "200":
+          description: The show.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicShow" }
+        "301":
+          description: The show has a new slug.
+          headers:
+            Location: { $ref: "#/components/headers/Location" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /public/shows/{showSlug}/episodes:
+    parameters:
+      - $ref: "#/components/parameters/ShowSlug"
+    get:
+      operationId: listPublicEpisodes
+      tags: [public]
+      summary: List a show's published episodes
+      security: []
+      x-relay-authz: public
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: seasonNumber
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: A page of published episodes, newest `publishedAt` first.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicEpisodePage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /public/episodes/{episodeId}:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: getPublicEpisode
+      tags: [public]
+      summary: Get a published episode from its current release manifest
+      description: >-
+        Returns `404` for an episode that was never released, and `410` for one that was
+        unpublished.
+      security: []
+      x-relay-authz: public
+      responses:
+        "200":
+          description: The episode.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicEpisode" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /public/episodes/{episodeId}/transcript:
+    parameters:
+      - $ref: "#/components/parameters/EpisodeId"
+    get:
+      operationId: getPublicTranscript
+      tags: [public]
+      summary: Get the approved transcript pinned by the current release
+      security: []
+      x-relay-authz: public
+      responses:
+        "200":
+          description: The transcript.
+          headers:
+            Cache-Control: { $ref: "#/components/headers/PublicCacheControl" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicTranscript" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    staffOidc:
+      type: openIdConnect
+      description: >-
+        Bearer access tokens from the Keycloak `relay-staff` realm (decision A9). The admin app uses
+        the authorization code flow with PKCE, and the realm requires TOTP.
+      openIdConnectUrl: https://auth.relay.localtest.me/realms/relay-staff/.well-known/openid-configuration
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: >-
+        A client-generated key, unique per intended operation (a UUIDv4 is recommended). Required on
+        every mutating operation. A replay with the same key and body returns the original response.
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" }
+    IfMatch:
+      name: If-Match
+      in: header
+      description: The `ETag` from the last read. Required on writes to mutable resources.
+      required: false
+      schema: { type: string, maxLength: 128 }
+    Cursor:
+      name: cursor
+      in: query
+      description: The opaque `nextCursor` from the previous page. Omit it for the first page.
+      schema: { type: string, maxLength: 512 }
+    Limit:
+      name: limit
+      in: query
+      description: Page size.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    ShowId:
+      name: showId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    ShowSlug:
+      name: showSlug
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Slug" }
+    SeasonId:
+      name: seasonId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    EpisodeId:
+      name: episodeId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    TopicId:
+      name: topicId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    StaffUserId:
+      name: staffUserId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    RightsRecordId:
+      name: rightsRecordId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    TranscriptRevisionId:
+      name: transcriptRevisionId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    ChapterSetId:
+      name: chapterSetId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    ManifestId:
+      name: manifestId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    PublicationTargetId:
+      name: publicationTargetId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/Id" }
+
+  headers:
+    ETag:
+      description: The entity tag of the returned representation.
+      schema: { type: string }
+    Location:
+      description: The URL of the created or target resource.
+      schema: { type: string, format: uri-reference }
+    PublicCacheControl:
+      description: >-
+        Public responses are cacheable, for example `public, max-age=60, stale-if-error=86400`, and
+        never vary by credentials.
+      schema: { type: string }
+
+  responses:
+    Error:
+      description: Any other error.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    BadRequest:
+      description: The request is malformed or fails validation. `errors` lists each field.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthorized:
+      description: No valid staff bearer token.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: The caller lacks the role this operation needs (`x-relay-authz`).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: >-
+        No such resource, or the caller may not know it exists. Resources on shows the caller has no
+        grant on return `404`, not `403`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: >-
+        The request conflicts with the resource's state: an invalid transition, a blocked readiness
+        check (`blockingReasons`), a uniqueness violation, or a reused idempotency key.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Gone:
+      description: The resource was published and has been withdrawn.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PreconditionFailed:
+      description: "`If-Match` does not match the current `ETag`. Re-read and retry."
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PreconditionRequired:
+      description: "`If-Match` is required for this write."
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ContentTooLarge:
+      description: The declared size exceeds the show's limit.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    # ------------------------------------------------------------ shared JSON Schemas
+    ReleaseManifest:
+      $ref: "../schemas/release-manifest.schema.json"
+    DeliveryReceipt:
+      $ref: "../schemas/delivery-receipt.schema.json"
+
+    # ------------------------------------------------------------ primitives and errors
+    Id:
+      type: string
+      format: uuid
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    Slug:
+      type: string
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+      minLength: 1
+      maxLength: 100
+    LanguageTag:
+      description: BCP 47 language tag.
+      type: string
+      pattern: "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"
+    Sha256:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+    HttpsUrl:
+      type: string
+      format: uri
+      pattern: "^https://"
+      maxLength: 2048
+    Problem:
+      description: An RFC 9457 problem document.
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          description: A URI under `https://relay.dev/problems/`, for example `…/invalid-transition`.
+          type: string
+          format: uri-reference
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code:
+          description: A stable machine-readable code, for example `invalid_transition`.
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+        requestId: { type: string }
+        errors:
+          description: Field-level validation errors.
+          type: array
+          items: { $ref: "#/components/schemas/FieldError" }
+        blockingReasons:
+          description: Every failing readiness check, when publishing or scheduling is blocked.
+          type: array
+          items: { $ref: "#/components/schemas/ReadinessReason" }
+        currentState:
+          description: For `invalid-transition`, the state the resource is in.
+          type: string
+    FieldError:
+      type: object
+      required: [pointer, code, message]
+      properties:
+        pointer:
+          description: JSON Pointer (RFC 6901) to the offending field in the request body.
+          type: string
+        code: { type: string, pattern: "^[a-z][a-z0-9_]*$" }
+        message: { type: string }
+    Comment:
+      type: object
+      required: [comment]
+      properties:
+        comment: { type: string, minLength: 1, maxLength: 4000 }
+    OptionalComment:
+      type: object
+      properties:
+        comment: { type: string, maxLength: 4000 }
+    Reason:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 4000 }
+    Note:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1, maxLength: 4000 }
+    # ------------------------------------------------------------ access
+    ShowRole:
+      type: string
+      enum: [show_editor, producer, viewer]
+    StaffUser:
+      type: object
+      required: [id, displayName, networkAdmin, createdAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        displayName: { type: string, maxLength: 200 }
+        networkAdmin: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    StaffUserPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/StaffUser" }
+        nextCursor: { type: [string, "null"] }
+    ShowRoleGrant:
+      type: object
+      required: [showId, staffUserId, role, grantedAt]
+      properties:
+        showId: { $ref: "#/components/schemas/Id" }
+        staffUserId: { $ref: "#/components/schemas/Id" }
+        role: { $ref: "#/components/schemas/ShowRole" }
+        grantedAt: { type: string, format: date-time }
+    ShowRoleGrantPut:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: "#/components/schemas/ShowRole" }
+    ShowRoleGrantPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ShowRoleGrant" }
+        nextCursor: { type: [string, "null"] }
+    Me:
+      type: object
+      required: [staffUser, grants]
+      properties:
+        staffUser: { $ref: "#/components/schemas/StaffUser" }
+        grants:
+          type: array
+          items: { $ref: "#/components/schemas/ShowRoleGrant" }
+
+    # ------------------------------------------------------------ network and shows
+    Network:
+      type: object
+      required: [id, slug, name, defaultLanguage, siteUrl, retiredVersionRetentionDays, updatedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        slug: { $ref: "#/components/schemas/Slug" }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        defaultLanguage: { $ref: "#/components/schemas/LanguageTag" }
+        siteUrl: { $ref: "#/components/schemas/HttpsUrl" }
+        retiredVersionRetentionDays:
+          description: How long retired media versions stay served (ADR 0006 V8). Never below 30.
+          type: integer
+          minimum: 30
+        updatedAt: { type: string, format: date-time }
+    NetworkUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        defaultLanguage: { $ref: "#/components/schemas/LanguageTag" }
+        retiredVersionRetentionDays: { type: integer, minimum: 30 }
+    ShowStatus:
+      type: string
+      enum: [active, archived]
+    ShowCategory:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        subcategory: { type: [string, "null"], minLength: 1, maxLength: 100 }
+    Show:
+      type: object
+      required:
+        - id
+        - networkId
+        - slug
+        - podcastGuid
+        - title
+        - author
+        - description
+        - language
+        - explicit
+        - categories
+        - status
+        - feedUrl
+        - newFeedUrl
+        - artworkAssetId
+        - copyright
+        - requireSeparateApprover
+        - transcriptionAutoStart
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        networkId: { $ref: "#/components/schemas/Id" }
+        slug:
+          description: Mutable, and used only in site URLs. Never an identifier.
+          allOf: [{ $ref: "#/components/schemas/Slug" }]
+        podcastGuid:
+          description: The show-level `podcast:guid` (ADR 0006 G8). Read-only.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+        title: { type: string, minLength: 1, maxLength: 500 }
+        author: { type: string, minLength: 1, maxLength: 500 }
+        description: { type: string, maxLength: 4000 }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        explicit: { type: boolean }
+        categories:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/ShowCategory" }
+        status: { $ref: "#/components/schemas/ShowStatus" }
+        feedUrl:
+          description: The canonical public feed URL, served from feed snapshots.
+          allOf: [{ $ref: "#/components/schemas/HttpsUrl" }]
+        newFeedUrl:
+          description: Set only while a feed migration's redirect period runs (P1-16).
+          type: [string, "null"]
+          format: uri
+        artworkAssetId:
+          description: The selected artwork asset version.
+          type: [string, "null"]
+          format: uuid
+        copyright: { type: [string, "null"], maxLength: 1000 }
+        requireSeparateApprover:
+          description: When true (the default), an approver must not be the submitter.
+          type: boolean
+        transcriptionAutoStart:
+          description: Start self-hosted transcription automatically when a master is ready (T1).
+          type: boolean
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ShowCreate:
+      type: object
+      required: [slug, title, author, language, categories]
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        author: { type: string, minLength: 1, maxLength: 500 }
+        description: { type: string, maxLength: 4000 }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        explicit: { type: boolean, default: false }
+        categories:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { $ref: "#/components/schemas/ShowCategory" }
+        copyright: { type: string, maxLength: 1000 }
+    ShowUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        author: { type: string, minLength: 1, maxLength: 500 }
+        description: { type: string, maxLength: 4000 }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        explicit: { type: boolean }
+        categories:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { $ref: "#/components/schemas/ShowCategory" }
+        status: { $ref: "#/components/schemas/ShowStatus" }
+        artworkAssetId: { type: [string, "null"], format: uuid }
+        copyright: { type: [string, "null"], maxLength: 1000 }
+        requireSeparateApprover: { type: boolean }
+        transcriptionAutoStart: { type: boolean }
+    ShowPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Show" }
+        nextCursor: { type: [string, "null"] }
+    Season:
+      type: object
+      required: [id, showId, number, title, createdAt, updatedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        showId: { $ref: "#/components/schemas/Id" }
+        number:
+          description: Unique per show. Maps to `podcast:season`.
+          type: integer
+          minimum: 1
+        title: { type: [string, "null"], maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SeasonCreate:
+      type: object
+      required: [number]
+      properties:
+        number: { type: integer, minimum: 1 }
+        title: { type: string, maxLength: 500 }
+    SeasonUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        number: { type: integer, minimum: 1 }
+        title: { type: [string, "null"], maxLength: 500 }
+    SeasonPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Season" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ episodes
+    PublicationStatus:
+      description: State machine §1.
+      type: string
+      enum: [unreleased, scheduled, publishing, published, unpublished]
+    ReadinessState:
+      type: string
+      enum: [ready, blocked]
+    ReadinessReason:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - revision_not_approved
+            - enclosure_missing
+            - enclosure_not_ready
+            - transcript_not_approved
+            - chapters_not_approved
+            - rights_not_cleared
+            - metadata_invalid
+            - guid_unreconciled
+            - access_class_unsupported
+        message: { type: string }
+        subjectId:
+          description: The record that failed the check, when there is one.
+          type: [string, "null"]
+          format: uuid
+    Readiness:
+      description: Computed, never set (`model/state-machines.md`, "Readiness").
+      type: object
+      required: [state, revisionId, reasons, checkedAt]
+      properties:
+        state: { $ref: "#/components/schemas/ReadinessState" }
+        revisionId:
+          description: The candidate revision that was checked, or null if there is none.
+          type: [string, "null"]
+          format: uuid
+        reasons:
+          description: Every failing check. Empty when `ready`.
+          type: array
+          items: { $ref: "#/components/schemas/ReadinessReason" }
+        checkedAt: { type: string, format: date-time }
+    ScheduleState:
+      type: string
+      enum: [pending, fired, cancelled, superseded]
+    EpisodeSchedule:
+      type: object
+      required: [id, generation, revisionId, publishAt, state, createdAt, createdBy]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        generation: { type: integer, minimum: 1 }
+        revisionId: { $ref: "#/components/schemas/Id" }
+        publishAt: { type: string, format: date-time }
+        state: { $ref: "#/components/schemas/ScheduleState" }
+        createdAt: { type: string, format: date-time }
+        createdBy: { $ref: "#/components/schemas/Id" }
+    GuidOrigin:
+      type: string
+      enum: [generated, imported, reconciled]
+    Episode:
+      description: >-
+        The permanent identity of one episode and its state dimensions. Content lives in revisions.
+      type: object
+      required:
+        - id
+        - showId
+        - seasonId
+        - guid
+        - guidOrigin
+        - publicationStatus
+        - corrected
+        - correctionCount
+        - readiness
+        - openRevisionId
+        - releasedRevisionId
+        - currentManifestId
+        - originalPublishedAt
+        - scheduleGeneration
+        - pendingSchedule
+        - topicIds
+        - title
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        showId: { $ref: "#/components/schemas/Id" }
+        seasonId: { type: [string, "null"], format: uuid }
+        guid:
+          description: >-
+            The permanent episode GUID. Read-only. A lowercase UUIDv4 for native episodes, or the
+            imported value byte for byte (ADR 0006).
+          type: string
+          minLength: 1
+          maxLength: 2048
+        guidOrigin: { $ref: "#/components/schemas/GuidOrigin" }
+        publicationStatus: { $ref: "#/components/schemas/PublicationStatus" }
+        corrected:
+          description: True when the current manifest is a correction.
+          type: boolean
+        correctionCount: { type: integer, minimum: 0 }
+        readiness: { $ref: "#/components/schemas/Readiness" }
+        openRevisionId:
+          description: The revision being edited or reviewed, if any. At most one per episode.
+          type: [string, "null"]
+          format: uuid
+        releasedRevisionId:
+          description: The revision pinned by the current manifest.
+          type: [string, "null"]
+          format: uuid
+        currentManifestId: { type: [string, "null"], format: uuid }
+        originalPublishedAt:
+          description: Set by the first release and never changed. The feed `pubDate` forever.
+          type: [string, "null"]
+          format: date-time
+        scheduleGeneration: { type: integer, minimum: 0 }
+        pendingSchedule:
+          description: The pending schedule, if any. A published episode can have one for a correction.
+          oneOf:
+            - $ref: "#/components/schemas/EpisodeSchedule"
+            - type: "null"
+        topicIds:
+          type: array
+          items: { $ref: "#/components/schemas/Id" }
+        title:
+          description: The title of the open revision, or of the released one when nothing is open.
+          type: string
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    EpisodeCreate:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 500 }
+        seasonId: { $ref: "#/components/schemas/Id" }
+    EpisodePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Episode" }
+        nextCursor: { type: [string, "null"] }
+    EpisodeTopics:
+      type: object
+      required: [topicIds]
+      properties:
+        topicIds:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/Id" }
+    ScheduleRequest:
+      type: object
+      required: [revisionId, publishAt]
+      properties:
+        revisionId: { $ref: "#/components/schemas/Id" }
+        publishAt:
+          description: Must be in the future.
+          type: string
+          format: date-time
+    PublishRequest:
+      type: object
+      required: [revisionId]
+      properties:
+        revisionId:
+          description: The approved revision to release. It must be the episode's open revision.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+    PublishAccepted:
+      type: object
+      required: [episode, manifestId]
+      properties:
+        episode: { $ref: "#/components/schemas/Episode" }
+        manifestId: { $ref: "#/components/schemas/Id" }
+    UnpublishRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [editorial, rights, legal, other] }
+        note: { type: string, maxLength: 4000 }
+
+    # ------------------------------------------------------------ revisions and notes
+    RevisionState:
+      description: State machine §2.
+      type: string
+      enum:
+        [
+          draft,
+          correction_draft,
+          in_review,
+          changes_requested,
+          approved,
+          released,
+          superseded,
+          discarded,
+        ]
+    AccessClass:
+      description: Decision A10. Phase 1 supports `public` only (readiness `access_class_unsupported`).
+      type: string
+      enum: [public, registered, paid]
+    Edition:
+      type: string
+      enum: [standard, ad_free, bonus]
+    EpisodeType:
+      type: string
+      enum: [full, trailer, bonus]
+    CreditRole:
+      type: string
+      enum: [host, guest, producer, other]
+    Credit:
+      type: object
+      required: [personId, role, sortOrder]
+      properties:
+        personId: { $ref: "#/components/schemas/Id" }
+        role: { $ref: "#/components/schemas/CreditRole" }
+        sortOrder: { type: integer, minimum: 0 }
+    NotesDoc:
+      description: >-
+        TipTap/ProseMirror JSON, the source of truth for show notes (decision A15). Node types
+        outside the allow-list are rejected on render.
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: doc }
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/NotesNode" }
+    NotesNode:
+      description: A ProseMirror node. Its shape depends on `type`.
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9_]*$" }
+      additionalProperties: true
+    EpisodeRevision:
+      type: object
+      required:
+        - id
+        - episodeId
+        - number
+        - kind
+        - state
+        - title
+        - subtitle
+        - summary
+        - notesDoc
+        - episodeType
+        - episodeNumber
+        - explicit
+        - accessClass
+        - edition
+        - enclosureAssetId
+        - transcriptRevisionId
+        - chapterSetId
+        - basedOnRevisionId
+        - credits
+        - submittedBy
+        - submittedAt
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        number: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [initial, correction] }
+        state: { $ref: "#/components/schemas/RevisionState" }
+        title: { type: string, maxLength: 500 }
+        subtitle: { type: [string, "null"], maxLength: 500 }
+        summary:
+          description: Plain-text summary.
+          type: string
+          maxLength: 4000
+        notesDoc: { $ref: "#/components/schemas/NotesDoc" }
+        episodeType: { $ref: "#/components/schemas/EpisodeType" }
+        episodeNumber: { type: [integer, "null"], minimum: 1 }
+        explicit: { type: boolean }
+        accessClass: { $ref: "#/components/schemas/AccessClass" }
+        edition: { $ref: "#/components/schemas/Edition" }
+        enclosureAssetId:
+          description: The explicitly selected enclosure version (ADR 0006 V5). There is no "latest".
+          type: [string, "null"]
+          format: uuid
+        transcriptRevisionId: { type: [string, "null"], format: uuid }
+        chapterSetId: { type: [string, "null"], format: uuid }
+        basedOnRevisionId: { type: [string, "null"], format: uuid }
+        credits:
+          type: array
+          items: { $ref: "#/components/schemas/Credit" }
+        submittedBy: { type: [string, "null"], format: uuid }
+        submittedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RevisionCreate:
+      type: object
+      properties:
+        basedOnRevisionId:
+          description: Copy content from this revision. Defaults to the released revision, if any.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+    RevisionUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 500 }
+        subtitle: { type: [string, "null"], maxLength: 500 }
+        summary: { type: string, maxLength: 4000 }
+        notesDoc: { $ref: "#/components/schemas/NotesDoc" }
+        episodeType: { $ref: "#/components/schemas/EpisodeType" }
+        episodeNumber: { type: [integer, "null"], minimum: 1 }
+        explicit: { type: boolean }
+        accessClass: { $ref: "#/components/schemas/AccessClass" }
+        edition: { $ref: "#/components/schemas/Edition" }
+        enclosureAssetId: { type: [string, "null"], format: uuid }
+        transcriptRevisionId: { type: [string, "null"], format: uuid }
+        chapterSetId: { type: [string, "null"], format: uuid }
+        credits:
+          description: Replaces the whole list.
+          type: array
+          items: { $ref: "#/components/schemas/Credit" }
+    EpisodeRevisionPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/EpisodeRevision" }
+        nextCursor: { type: [string, "null"] }
+    NotesRenderRequest:
+      type: object
+      required: [doc]
+      properties:
+        doc: { $ref: "#/components/schemas/NotesDoc" }
+    NotesRenderResult:
+      type: object
+      required: [html, markdown, sha256, warnings]
+      properties:
+        html:
+          description: Sanitized HTML, safe for feeds and the site.
+          type: string
+        markdown: { type: string }
+        sha256:
+          description: SHA-256 of `html` as UTF-8, as pinned in the manifest (`notesSha256`).
+          allOf: [{ $ref: "#/components/schemas/Sha256" }]
+        warnings:
+          description: Content the sanitizer removed or changed.
+          type: array
+          items: { type: string }
+
+    # ------------------------------------------------------------ people and topics
+    Person:
+      type: object
+      required: [id, slug, displayName, bioDoc, href, imageAssetId, createdAt, updatedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        slug: { $ref: "#/components/schemas/Slug" }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        bioDoc:
+          oneOf:
+            - $ref: "#/components/schemas/NotesDoc"
+            - type: "null"
+        href: { type: [string, "null"], format: uri, pattern: "^https://", maxLength: 2048 }
+        imageAssetId: { type: [string, "null"], format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PersonCreate:
+      type: object
+      required: [slug, displayName]
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        bioDoc: { $ref: "#/components/schemas/NotesDoc" }
+        href: { $ref: "#/components/schemas/HttpsUrl" }
+    PersonUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        bioDoc:
+          oneOf:
+            - $ref: "#/components/schemas/NotesDoc"
+            - type: "null"
+        href: { type: [string, "null"], format: uri, pattern: "^https://", maxLength: 2048 }
+        imageAssetId: { type: [string, "null"], format: uuid }
+    PersonPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Person" }
+        nextCursor: { type: [string, "null"] }
+    Topic:
+      type: object
+      required: [id, slug, label]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        slug: { $ref: "#/components/schemas/Slug" }
+        label: { type: string, minLength: 1, maxLength: 100 }
+    TopicCreate:
+      type: object
+      required: [slug, label]
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        label: { type: string, minLength: 1, maxLength: 100 }
+    TopicUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        label: { type: string, minLength: 1, maxLength: 100 }
+    TopicPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Topic" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ rights and approvals
+    RightsSubject:
+      type: string
+      enum: [music, guest_release, image, license]
+    RightsState:
+      type: string
+      enum: [pending, cleared, restricted, expired]
+    RightsRecord:
+      type: object
+      required:
+        - id
+        - episodeId
+        - mediaAssetId
+        - subject
+        - license
+        - attribution
+        - state
+        - expiresAt
+        - hasDocument
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        mediaAssetId:
+          description: Set for rights that apply to one asset version only.
+          type: [string, "null"]
+          format: uuid
+        subject: { $ref: "#/components/schemas/RightsSubject" }
+        license:
+          description: An SPDX or Creative Commons identifier (for example `CC-BY-4.0`), or `custom`.
+          type: string
+          minLength: 1
+          maxLength: 100
+        attribution: { type: [string, "null"], maxLength: 2000 }
+        state: { $ref: "#/components/schemas/RightsState" }
+        expiresAt: { type: [string, "null"], format: date-time }
+        hasDocument:
+          description: Whether a private rights document is attached. It is never exposed publicly.
+          type: boolean
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RightsRecordCreate:
+      type: object
+      required: [subject, license]
+      properties:
+        mediaAssetId: { $ref: "#/components/schemas/Id" }
+        subject: { $ref: "#/components/schemas/RightsSubject" }
+        license: { type: string, minLength: 1, maxLength: 100 }
+        attribution: { type: string, maxLength: 2000 }
+        expiresAt: { type: string, format: date-time }
+    RightsRecordUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        subject: { $ref: "#/components/schemas/RightsSubject" }
+        license: { type: string, minLength: 1, maxLength: 100 }
+        attribution: { type: [string, "null"], maxLength: 2000 }
+        expiresAt: { type: [string, "null"], format: date-time }
+    RightsDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [cleared, restricted] }
+        comment: { type: string, maxLength: 4000 }
+    RightsRecordPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/RightsRecord" }
+        nextCursor: { type: [string, "null"] }
+    ApprovalSubjectType:
+      type: string
+      enum: [episode_revision, transcript_revision, chapter_set, rights_record]
+    Approval:
+      description: An immutable editorial decision.
+      type: object
+      required: [id, subjectType, subjectId, approverId, decision, comment, decidedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        subjectType: { $ref: "#/components/schemas/ApprovalSubjectType" }
+        subjectId: { $ref: "#/components/schemas/Id" }
+        approverId: { $ref: "#/components/schemas/Id" }
+        decision: { type: string, enum: [approved, changes_requested, rejected] }
+        comment: { type: [string, "null"], maxLength: 4000 }
+        decidedAt: { type: string, format: date-time }
+    ApprovalPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Approval" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ media
+    AssetRole:
+      description: What a file is for. Separate from its format.
+      type: string
+      enum: [master, rendition, caption, thumbnail, transcript, chapters, artwork]
+    AssetFormat:
+      description: How a file is encoded. Separate from its role.
+      type: string
+      enum:
+        - mp3
+        - aac_m4a
+        - opus
+        - wav
+        - flac
+        - hls_master
+        - hls_media
+        - mp4
+        - webvtt
+        - srt
+        - podcast_json
+        - podcast_chapters_json
+        - text
+        - jpeg
+        - png
+        - webp
+    MediaType:
+      type: string
+      enum: [audio, video, text, image]
+    ProcessingState:
+      description: State machine §3.
+      type: string
+      enum:
+        [uploading, uploaded, expired, probing, queued, processing, ready, rejected, failed, retired, purged]
+    MediaAsset:
+      description: One immutable file version (ADR 0006 V2).
+      type: object
+      required:
+        - id
+        - episodeId
+        - lineageId
+        - version
+        - role
+        - format
+        - mediaType
+        - edition
+        - fileName
+        - mime
+        - bytes
+        - sha256
+        - durationMs
+        - width
+        - height
+        - bitrateKbps
+        - language
+        - sourceAssetId
+        - processingState
+        - problem
+        - publicUrl
+        - retainUntil
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId:
+          description: Null for show or person artwork.
+          type: [string, "null"]
+          format: uuid
+        lineageId:
+          description: Shared by every version of one logical asset.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+        version: { type: integer, minimum: 1 }
+        role: { $ref: "#/components/schemas/AssetRole" }
+        format:
+          description: Null until the probe identifies an uploaded file.
+          oneOf:
+            - $ref: "#/components/schemas/AssetFormat"
+            - type: "null"
+        mediaType:
+          oneOf:
+            - $ref: "#/components/schemas/MediaType"
+            - type: "null"
+        edition: { $ref: "#/components/schemas/Edition" }
+        fileName:
+          description: Chosen when the version is created, and never changed (ADR 0006 V3).
+          type: string
+          pattern: "^[A-Za-z0-9._-]+$"
+          maxLength: 255
+        mime: { type: string, maxLength: 255 }
+        bytes:
+          description: Null until the upload completes.
+          type: [integer, "null"]
+          format: int64
+          minimum: 1
+        sha256:
+          description: Computed by the server over the stored object. Null until the upload completes.
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+        durationMs: { type: [integer, "null"], minimum: 1 }
+        width: { type: [integer, "null"], minimum: 1 }
+        height: { type: [integer, "null"], minimum: 1 }
+        bitrateKbps: { type: [integer, "null"], minimum: 1 }
+        language: { type: [string, "null"], pattern: "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$" }
+        sourceAssetId:
+          description: The version this file was derived from (ADR 0006 V11).
+          type: [string, "null"]
+          format: uuid
+        processingState: { $ref: "#/components/schemas/ProcessingState" }
+        problem:
+          description: Why the asset was rejected or failed, when it was.
+          oneOf:
+            - $ref: "#/components/schemas/Problem"
+            - type: "null"
+        publicUrl:
+          description: >-
+            The permanent versioned URL `https://{media-host}/a/{assetId}/{fileName}`, assigned when a
+            release first uses the version. Masters never get one.
+          type: [string, "null"]
+          format: uri
+        retainUntil: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    MediaAssetPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MediaAsset" }
+        nextCursor: { type: [string, "null"] }
+    UploadCreate:
+      type: object
+      required: [role, fileName, bytes, mime]
+      properties:
+        role:
+          description: Uploads create masters and artwork. Other roles are derived by the pipeline.
+          type: string
+          enum: [master, artwork]
+        lineageId:
+          description: Upload a new version of this lineage. Omit it to start a new lineage.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+        edition: { $ref: "#/components/schemas/Edition" }
+        fileName: { type: string, pattern: "^[A-Za-z0-9._-]+$", maxLength: 255 }
+        bytes:
+          description: The declared size. tus rejects any other length.
+          type: integer
+          format: int64
+          minimum: 1
+        mime: { type: string, maxLength: 255 }
+    DocumentUploadCreate:
+      type: object
+      required: [fileName, bytes, mime]
+      properties:
+        fileName: { type: string, pattern: "^[A-Za-z0-9._-]+$", maxLength: 255 }
+        bytes: { type: integer, format: int64, minimum: 1 }
+        mime: { type: string, enum: [application/pdf, image/jpeg, image/png, text/plain] }
+    UploadSession:
+      type: object
+      required: [assetId, uploadUrl, tusVersion, expiresAt, maxChunkBytes]
+      properties:
+        assetId:
+          description: The new version, in `uploading`. Null for rights documents, which are not assets.
+          type: [string, "null"]
+          format: uuid
+        uploadUrl:
+          description: >-
+            The tus upload URL. Send `PATCH` requests with `Upload-Offset` and the staff bearer token.
+            Resume with `HEAD`.
+          type: string
+          format: uri
+        tusVersion: { type: string, const: 1.0.0 }
+        expiresAt:
+          description: After this, an incomplete upload is abandoned (M3).
+          type: string
+          format: date-time
+        maxChunkBytes: { type: integer, minimum: 1 }
+    TakedownRequest:
+      type: object
+      required: [reason, note]
+      properties:
+        reason: { type: string, enum: [rights, legal] }
+        note: { type: string, minLength: 1, maxLength: 4000 }
+
+    # ------------------------------------------------------------ transcripts
+    TranscriptSource:
+      description: How the transcript was made. Engine names are data, never types.
+      type: string
+      enum: [whisper, hosted, manual]
+    TranscriptState:
+      description: State machine §4.
+      type: string
+      enum: [pending, failed, draft, approved, rejected, superseded]
+    TranscriptRevision:
+      type: object
+      required:
+        - id
+        - episodeId
+        - sourceAssetId
+        - number
+        - source
+        - engine
+        - language
+        - state
+        - supersedesId
+        - hasSpeakerLabels
+        - draftVersion
+        - jobId
+        - createdAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        sourceAssetId:
+          description: The exact media version that was transcribed.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+        number: { type: integer, minimum: 1 }
+        source: { $ref: "#/components/schemas/TranscriptSource" }
+        engine:
+          description: The adapter name and model, as data (for example `faster-whisper/small`).
+          type: [string, "null"]
+          maxLength: 200
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        state: { $ref: "#/components/schemas/TranscriptState" }
+        supersedesId: { type: [string, "null"], format: uuid }
+        hasSpeakerLabels: { type: boolean }
+        draftVersion:
+          description: Increments on every draft save (T6).
+          type: integer
+          minimum: 0
+        jobId:
+          description: The processing job for machine transcripts.
+          type: [string, "null"]
+          format: uuid
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TranscriptSegment:
+      type: object
+      required: [startMs, endMs, speaker, text]
+      properties:
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 0 }
+        speaker: { type: [string, "null"], maxLength: 200 }
+        text: { type: string, maxLength: 10000 }
+    TranscriptRevisionDetail:
+      allOf:
+        - $ref: "#/components/schemas/TranscriptRevision"
+        - type: object
+          required: [segments]
+          properties:
+            segments:
+              type: array
+              items: { $ref: "#/components/schemas/TranscriptSegment" }
+    TranscriptRevisionPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TranscriptRevision" }
+        nextCursor: { type: [string, "null"] }
+    TranscriptionRequest:
+      type: object
+      required: [source, sourceAssetId]
+      properties:
+        source:
+          description: Machine providers only. Manual transcripts use the manual upload operation.
+          type: string
+          enum: [whisper, hosted]
+        sourceAssetId: { $ref: "#/components/schemas/Id" }
+        language:
+          description: Omit it to let the engine detect the language.
+          allOf: [{ $ref: "#/components/schemas/LanguageTag" }]
+    ManualTranscript:
+      type: object
+      required: [sourceAssetId, language, format, content]
+      properties:
+        sourceAssetId: { $ref: "#/components/schemas/Id" }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        format: { type: string, enum: [podcast_json, webvtt, srt, text] }
+        content:
+          description: The file's contents as UTF-8 text, at most 5 MB.
+          type: string
+          maxLength: 5000000
+    TranscriptUpdate:
+      type: object
+      required: [segments]
+      properties:
+        segments:
+          description: Replaces every segment.
+          type: array
+          items: { $ref: "#/components/schemas/TranscriptSegment" }
+
+    # ------------------------------------------------------------ chapters
+    ChapterSetState:
+      type: string
+      enum: [draft, approved, superseded]
+    Chapter:
+      type: object
+      required: [startMs, endMs, title, url, imageAssetId]
+      properties:
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: [integer, "null"], minimum: 0 }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        url: { type: [string, "null"], format: uri, pattern: "^https://", maxLength: 2048 }
+        imageAssetId: { type: [string, "null"], format: uuid }
+    ChapterSet:
+      type: object
+      required: [id, episodeId, version, state, timedAgainstAssetId, chapters, createdAt, updatedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        version: { type: integer, minimum: 1 }
+        state: { $ref: "#/components/schemas/ChapterSetState" }
+        timedAgainstAssetId:
+          description: The exact media version these timestamps are valid for.
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+        chapters:
+          type: array
+          items: { $ref: "#/components/schemas/Chapter" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ChapterSetCreate:
+      type: object
+      required: [timedAgainstAssetId, chapters]
+      properties:
+        timedAgainstAssetId: { $ref: "#/components/schemas/Id" }
+        chapters:
+          type: array
+          items: { $ref: "#/components/schemas/Chapter" }
+    ChapterSetUpdate:
+      type: object
+      required: [chapters]
+      properties:
+        chapters:
+          description: Replaces every chapter.
+          type: array
+          items: { $ref: "#/components/schemas/Chapter" }
+    ChapterSetPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ChapterSet" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ jobs
+    JobKind:
+      type: string
+      enum:
+        [
+          probe,
+          encode_audio,
+          encode_video,
+          transcribe,
+          package,
+          render_feed,
+          submit_destination,
+          export,
+        ]
+    JobState:
+      type: string
+      enum: [queued, running, succeeded, failed, cancelled]
+    ProcessingJob:
+      description: The durable record of one unit of background work. Its ID is the idempotency key.
+      type: object
+      required:
+        - id
+        - kind
+        - subjectType
+        - subjectId
+        - state
+        - attempt
+        - externalRef
+        - problem
+        - createdAt
+        - startedAt
+        - finishedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        kind: { $ref: "#/components/schemas/JobKind" }
+        subjectType: { type: string, pattern: "^[a-z_]+$" }
+        subjectId: { $ref: "#/components/schemas/Id" }
+        state: { $ref: "#/components/schemas/JobState" }
+        attempt: { type: integer, minimum: 1 }
+        externalRef:
+          description: The Argo workflow name, when the job runs there.
+          type: [string, "null"]
+        problem:
+          oneOf:
+            - $ref: "#/components/schemas/Problem"
+            - type: "null"
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        finishedAt: { type: [string, "null"], format: date-time }
+    ProcessingJobPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ProcessingJob" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ publishing and distribution
+    ReleaseManifestRecord:
+      type: object
+      required: [id, episodeId, sequence, kind, sha256, effectiveAt, body]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        sequence: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [release, correction] }
+        sha256:
+          description: SHA-256 of the body's RFC 8785 canonical JSON.
+          allOf: [{ $ref: "#/components/schemas/Sha256" }]
+        effectiveAt: { type: string, format: date-time }
+        body: { $ref: "#/components/schemas/ReleaseManifest" }
+    ReleaseManifestRecordPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ReleaseManifestRecord" }
+        nextCursor: { type: [string, "null"] }
+    DeliveryReceiptPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeliveryReceipt" }
+        nextCursor: { type: [string, "null"] }
+    OwnedOutputKind:
+      type: string
+      enum: [feed_snapshot, website, media_edge]
+    OwnedOutputStatus:
+      type: object
+      required: [kind, state, sync, lastDeliveredManifestId, lastReceiptAt]
+      properties:
+        kind: { $ref: "#/components/schemas/OwnedOutputKind" }
+        state:
+          description: Delivery of the current manifest to this output.
+          type: string
+          enum: [pending, delivered, failed]
+        sync: { type: string, enum: [in_sync, out_of_sync] }
+        lastDeliveredManifestId: { type: [string, "null"], format: uuid }
+        lastReceiptAt: { type: [string, "null"], format: date-time }
+    DeliveryStatus:
+      type: object
+      required: [episodeId, currentManifestId, publishedHere, outputs, targets]
+      properties:
+        episodeId: { $ref: "#/components/schemas/Id" }
+        currentManifestId: { type: [string, "null"], format: uuid }
+        publishedHere:
+          description: True when the feed snapshot and website are delivered for the current manifest.
+          type: boolean
+        outputs:
+          type: array
+          items: { $ref: "#/components/schemas/OwnedOutputStatus" }
+        targets:
+          type: array
+          items: { $ref: "#/components/schemas/PublicationTarget" }
+    SubmissionMode:
+      type: string
+      enum: [automatic, manual, rss_pull]
+    Destination:
+      type: object
+      required: [id, key, displayName, submissionMode, capabilities, capabilitiesVerifiedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        key:
+          description: The destination's key, as data (for example `rss_directory`). Never a type.
+          type: string
+          pattern: "^[a-z0-9]+(_[a-z0-9]+)*$"
+          maxLength: 64
+        displayName: { type: string, maxLength: 200 }
+        submissionMode: { $ref: "#/components/schemas/SubmissionMode" }
+        capabilities: { $ref: "#/components/schemas/DestinationCapabilities" }
+        capabilitiesVerifiedAt:
+          description: When the capabilities were last checked against the destination's documentation.
+          type: [string, "null"]
+          format: date-time
+    DestinationCapabilities:
+      type: object
+      required: [mediaTypes, replacesMedia, chapters, transcripts]
+      properties:
+        mediaTypes:
+          type: array
+          items: { type: string, enum: [audio, video] }
+        replacesMedia:
+          description: Whether a corrected enclosure replaces the old media there (D10 versus D11).
+          type: boolean
+        chapters: { type: boolean }
+        transcripts: { type: boolean }
+        notes: { type: string, maxLength: 2000 }
+    DestinationPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Destination" }
+        nextCursor: { type: [string, "null"] }
+    PublicationTargetState:
+      description: State machine §5 (destinations).
+      type: string
+      enum:
+        [
+          not_submitted,
+          submitted,
+          confirmed,
+          failed,
+          retrying,
+          manual_required,
+          out_of_sync,
+          withdrawn,
+        ]
+    PublicationTarget:
+      type: object
+      required:
+        - id
+        - episodeId
+        - destinationId
+        - destinationKey
+        - submissionMode
+        - state
+        - lastConfirmedManifestId
+        - externalId
+        - externalUrl
+        - attempt
+        - nextRetryAt
+        - updatedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        episodeId: { $ref: "#/components/schemas/Id" }
+        destinationId: { $ref: "#/components/schemas/Id" }
+        destinationKey: { type: string, pattern: "^[a-z0-9]+(_[a-z0-9]+)*$", maxLength: 64 }
+        submissionMode: { $ref: "#/components/schemas/SubmissionMode" }
+        state: { $ref: "#/components/schemas/PublicationTargetState" }
+        lastConfirmedManifestId:
+          description: >-
+            "Confirmed available there" means `state: confirmed` and this equals the episode's current
+            manifest.
+          type: [string, "null"]
+          format: uuid
+        externalId: { type: [string, "null"], maxLength: 512 }
+        externalUrl: { type: [string, "null"], format: uri }
+        attempt: { type: integer, minimum: 0 }
+        nextRetryAt: { type: [string, "null"], format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PublicationTargetPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PublicationTarget" }
+        nextCursor: { type: [string, "null"] }
+    ManualConfirmation:
+      type: object
+      required: [confirmedAt]
+      properties:
+        confirmedAt: { type: string, format: date-time }
+        externalUrl: { $ref: "#/components/schemas/HttpsUrl" }
+        note: { type: string, maxLength: 4000 }
+
+    # ------------------------------------------------------------ feeds, audit, exports
+    FeedSnapshot:
+      type: object
+      required: [id, showId, variant, generation, sha256, bytes, manifestIds, renderedAt]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        showId: { $ref: "#/components/schemas/Id" }
+        variant: { type: string, enum: [public, private_template] }
+        generation: { type: integer, minimum: 1 }
+        sha256: { $ref: "#/components/schemas/Sha256" }
+        bytes: { type: integer, minimum: 1 }
+        manifestIds:
+          description: Every release manifest rendered into this snapshot.
+          type: array
+          items: { $ref: "#/components/schemas/Id" }
+        renderedAt: { type: string, format: date-time }
+    FeedSnapshotPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FeedSnapshot" }
+        nextCursor: { type: [string, "null"] }
+    AuditEvent:
+      description: An append-only record of a state-changing command.
+      type: object
+      required:
+        [id, occurredAt, actorType, actorId, action, subjectType, subjectId, showId, diff, requestId]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        occurredAt: { type: string, format: date-time }
+        actorType: { type: string, enum: [staff, listener, system] }
+        actorId: { type: [string, "null"], format: uuid }
+        action:
+          description: A dotted action name, for example `episode.revision.approved`.
+          type: string
+          pattern: "^[a-z_]+(\\.[a-z_]+)+$"
+        subjectType: { type: string, pattern: "^[a-z_]+$" }
+        subjectId: { $ref: "#/components/schemas/Id" }
+        showId: { type: [string, "null"], format: uuid }
+        diff:
+          description: A redacted before/after of the changed fields.
+          type: object
+          additionalProperties: true
+        requestId: { type: [string, "null"] }
+    AuditEventPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEvent" }
+        nextCursor: { type: [string, "null"] }
+    ExportState:
+      type: string
+      enum: [queued, running, succeeded, failed]
+    Export:
+      type: object
+      required:
+        - id
+        - state
+        - includeMedia
+        - exportFormatVersion
+        - jobId
+        - bytes
+        - sha256
+        - createdAt
+        - createdBy
+        - finishedAt
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        state: { $ref: "#/components/schemas/ExportState" }
+        includeMedia:
+          description: Whether media bytes are copied into the archive, not only inventoried.
+          type: boolean
+        exportFormatVersion:
+          description: The `exportFormatVersion` of `schemas/export-index.schema.json`.
+          type: string
+          pattern: "^[0-9]+\\.[0-9]+$"
+        jobId: { $ref: "#/components/schemas/Id" }
+        bytes: { type: [integer, "null"], format: int64, minimum: 1 }
+        sha256:
+          description: SHA-256 of `export.json` in the archive.
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+        createdAt: { type: string, format: date-time }
+        createdBy: { $ref: "#/components/schemas/Id" }
+        finishedAt: { type: [string, "null"], format: date-time }
+    ExportCreate:
+      type: object
+      required: [includeMedia]
+      properties:
+        includeMedia: { type: boolean }
+    ExportPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Export" }
+        nextCursor: { type: [string, "null"] }
+
+    # ------------------------------------------------------------ public published content
+    PublicNetwork:
+      type: object
+      required: [slug, name, siteUrl, language]
+      properties:
+        slug: { $ref: "#/components/schemas/Slug" }
+        name: { type: string }
+        siteUrl: { $ref: "#/components/schemas/HttpsUrl" }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+    PublicShow:
+      type: object
+      required:
+        [id, slug, podcastGuid, title, author, description, language, explicit, categories, feedUrl, imageUrl, link]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        slug: { $ref: "#/components/schemas/Slug" }
+        podcastGuid: { $ref: "#/components/schemas/Id" }
+        title: { type: string }
+        author: { type: string }
+        description: { type: string }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        explicit: { type: boolean }
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/ShowCategory" }
+        feedUrl: { $ref: "#/components/schemas/HttpsUrl" }
+        imageUrl: { type: [string, "null"], format: uri }
+        link: { $ref: "#/components/schemas/HttpsUrl" }
+    PublicShowPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PublicShow" }
+        nextCursor: { type: [string, "null"] }
+    PublicEnclosure:
+      type: object
+      required: [url, length, mime, durationMs]
+      properties:
+        url:
+          description: The permanent versioned media URL (ADR 0006 V3).
+          type: string
+          format: uri
+        length: { type: integer, format: int64, minimum: 1 }
+        mime: { type: string }
+        durationMs: { type: integer, minimum: 1 }
+    PublicPerson:
+      type: object
+      required: [name, role, href, imageUrl]
+      properties:
+        name: { type: string }
+        role: { $ref: "#/components/schemas/CreditRole" }
+        href: { type: [string, "null"], format: uri }
+        imageUrl: { type: [string, "null"], format: uri }
+    PublicEpisode:
+      description: >-
+        Built only from the current release manifest's pinned metadata, never from draft or mutable
+        catalog rows.
+      type: object
+      required:
+        - id
+        - guid
+        - showId
+        - showSlug
+        - title
+        - subtitle
+        - summary
+        - notesHtml
+        - episodeType
+        - seasonNumber
+        - episodeNumber
+        - explicit
+        - language
+        - publishedAt
+        - updatedAt
+        - corrected
+        - enclosure
+        - imageUrl
+        - persons
+        - topics
+        - transcriptUrl
+        - chaptersUrl
+        - link
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        guid: { type: string }
+        showId: { $ref: "#/components/schemas/Id" }
+        showSlug: { $ref: "#/components/schemas/Slug" }
+        title: { type: string }
+        subtitle: { type: [string, "null"] }
+        summary: { type: string }
+        notesHtml:
+          description: Sanitized at release time.
+          type: string
+        episodeType: { $ref: "#/components/schemas/EpisodeType" }
+        seasonNumber: { type: [integer, "null"], minimum: 1 }
+        episodeNumber: { type: [integer, "null"], minimum: 1 }
+        explicit: { type: boolean }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        publishedAt:
+          description: The original publication time. Corrections never change it.
+          type: string
+          format: date-time
+        updatedAt:
+          description: When the current manifest took effect.
+          type: string
+          format: date-time
+        corrected: { type: boolean }
+        enclosure: { $ref: "#/components/schemas/PublicEnclosure" }
+        imageUrl: { type: [string, "null"], format: uri }
+        persons:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPerson" }
+        topics:
+          type: array
+          items: { $ref: "#/components/schemas/Slug" }
+        transcriptUrl:
+          description: The approved `podcast_json` transcript file, if the release has one.
+          type: [string, "null"]
+          format: uri
+        chaptersUrl:
+          description: The approved `podcast:chapters` JSON file, if the release has one.
+          type: [string, "null"]
+          format: uri
+        link: { $ref: "#/components/schemas/HttpsUrl" }
+    PublicEpisodePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PublicEpisode" }
+        nextCursor: { type: [string, "null"] }
+    PublicTranscript:
+      type: object
+      required: [episodeId, language, source, segments]
+      properties:
+        episodeId: { $ref: "#/components/schemas/Id" }
+        language: { $ref: "#/components/schemas/LanguageTag" }
+        source:
+          description: Shown to listeners so machine transcripts are labelled.
+          allOf: [{ $ref: "#/components/schemas/TranscriptSource" }]
+        segments:
+          type: array
+          items: { $ref: "#/components/schemas/TranscriptSegment" }
