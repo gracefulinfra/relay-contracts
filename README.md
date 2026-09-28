@@ -23,12 +23,12 @@ make test
 make lint
 ```
 
-| Target                   | What it does today                                                                                                                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `make test`              | Validates every fixture in `fixtures/<schema>/{valid,invalid}/` against `schemas/<schema>.schema.json` and its cross-field invariants. Valid fixtures must pass, and each invalid one must fail with the error named in `expected-failures.json` |
-| `make lint`              | Spectral lint of `openapi/*.yaml` (fails on warnings) and a Prettier check                                                                                                                                                                       |
-| `make build`             | Pending: client generation arrives with P0-04                                                                                                                                                                                                    |
-| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                                                                                                                |
+| Target                   | What it does today                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make test`              | Validates every fixture in `fixtures/<schema>/{valid,invalid}/` against `schemas/<schema>.schema.json` and its cross-field invariants. Valid fixtures must pass, and each invalid one must fail with the error named in `expected-failures.json`. Also checks the cost model: the pitch's 5.76 TB example reproduces, and `reports/cost-model/outputs.*` are current |
+| `make lint`              | Spectral lint of `openapi/*.yaml` (fails on warnings) and a Prettier check                                                                                                                                                                                                                                                                                           |
+| `make build`             | Pending: client generation arrives with P0-04                                                                                                                                                                                                                                                                                                                        |
+| `make dev`, `make image` | Skipped: nothing to run, no image                                                                                                                                                                                                                                                                                                                                    |
 
 `openapi/openapi.yaml` is still the bootstrap placeholder. The second P0-04 PR replaces it with `openapi/relay.v0.yaml`.
 
@@ -44,7 +44,9 @@ make lint
 | `scripts/invariants/`    | Cross-field rules JSON Schema cannot express, one module per schema        |
 | `docs/version-matrix.md` | Pinned tool and platform versions for all repos, with sources              |
 | `docs/ci.md`             | CI conventions, image verification, and cross-repo access                  |
+| `evaluations/`           | Castopod (P0-02) and vendor (P0-03) evaluations                            |
+| `reports/`               | Gate reports (`phase-0.md`) and the cost model (`cost-model.md`, P0-08)    |
 
 ## CI
 
-`.github/workflows/ci.yml` runs the `check` job (Spectral, Prettier, and fixture validation) on every PR and push.
+`.github/workflows/ci.yml` runs the `check` job (Spectral, Prettier, fixture validation, and the cost-model check) on every PR and push.

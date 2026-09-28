@@ -12,8 +12,9 @@
     "lint:openapi": "spectral lint --fail-severity=warn openapi/*.yaml",
     "lint:format": "prettier --check .",
     "lint": "pnpm lint:openapi && pnpm lint:format",
-    "test": "node scripts/validate-fixtures.mjs",
-    "format": "prettier --write ."
+    "test": "node scripts/validate-fixtures.mjs && node scripts/cost-model.mjs --check",
+    "format": "prettier --write .",
+    "cost-model": "node scripts/cost-model.mjs"
   },
   "devDependencies": {
     "@stoplight/spectral-cli": "6.16.3",

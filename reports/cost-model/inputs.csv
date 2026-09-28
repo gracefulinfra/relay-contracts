@@ -1,0 +1,43 @@
+key,unit,demo,pilot,scale,note
+shows,count,2,2,6,"demo: two fictional shows (D1); pilot: the pitch's 2-show pilot; scale: a mid-sized network"
+episodes_per_show_month,count,4,4,4,weekly releases
+episode_minutes,minutes,45,45,60,scale uses the pitch example length (60 min)
+catalog_months,months,12,12,12,storage is reported at steady state after this many months of new releases
+imported_back_catalog_hours,hours,20,100,500,"CC feed imports (A12) and migrated back catalog; stored once at the delivered bitrate, which is also their master"
+audio_downloads_month,count,200,10000,100000,demo traffic is the owner and CI; scale is the pitch example (100k)
+audio_delivered_kbps,kbps,128,128,128,pitch example bitrate
+audio_delivered_fraction,ratio,1,1,1,"share of the file an average download transfers; 1 = the pitch's 'complete downloads'"
+delivery_overhead_factor,ratio,1,1.1,1.1,"retries, overlapping ranges, and prefetch; applied after the pitch formula (the 5.76 TB check uses the formula before overhead)"
+audio_editions,count,1,1,2,scale adds an ad-free paid edition (P3-03)
+audio_master_kbps,kbps,1411,1411,1411,uploaded masters as 16-bit 44.1 kHz stereo WAV
+video_share_of_episodes,ratio,0,0.5,0.5,share of new episodes that also have video (P2-01)
+video_viewing_hours_month,hours,0,500,5000,owned-site HLS viewing; destinations (YouTube) are not delivered by Relay
+video_delivered_kbps,kbps,2500,2500,2500,average delivered bitrate across the ladder
+video_renditions,count,3,3,3,"360p, 720p, 1080p (limit renditions: pitch §10)"
+video_rendition_kbps_sum,kbps,8300,8300,8300,800 + 2500 + 5000 kbps ladder; drives rendition storage
+video_master_kbps,kbps,20000,20000,20000,high-quality H.264 master
+video_segment_seconds,seconds,6,6,6,HLS segment length; drives GET and PUT requests
+correction_rate,ratio,0.1,0.1,0.1,share of releases that get a corrected delivery version (ADR 0006)
+retired_retention_days,days,90,90,90,ADR 0006 V8 default retention of retired versions
+derived_small_gb_per_episode,GB,0.01,0.01,0.01,"transcripts, chapters, artwork, feed snapshots"
+storage_replication_factor,ratio,1,1,1,"1 for managed S3 (durability is in the price); self-hosted production needs 2+ or erasure coding"
+master_backup_copies,count,0,1,1,"independent copies of masters; demo has none (one laptop, see ADR 0008)"
+db_size_gb,GB,1,2,10,PostgreSQL data (app + Keycloak)
+db_backup_multiplier,ratio,7,7,7,base backups plus WAL retained (about a week of dailies)
+get_requests_per_download,count,2,2,2,"probe plus ranged fetch; players vary"
+feed_requests_month,count,1000,50000,500000,podcast apps polling feed snapshots
+feed_kb_transferred,KB,30,30,30,average bytes per feed request after 304s
+put_requests_per_audio_episode,count,50,50,50,"multipart parts plus derived files"
+log_bytes_per_request,bytes,500,500,500,edge/origin access log line
+log_retention_months,months,1,3,3,
+observability_storage_gb,GB,5,10,20,"Prometheus, Tempo, Loki on persistent volumes"
+audio_encode_cpu_h_per_media_h,CPU-h,0.05,0.05,0.05,"ASSUMPTION: loudness plus MP3 encode; benchmark in P1-06"
+transcribe_cpu_h_per_media_h,CPU-h,1,1,1,"ASSUMPTION: faster-whisper on CPU; benchmark on representative hardware in P1-07 (review report)"
+video_encode_cpu_h_per_media_h_per_rendition,CPU-h,2,2,2,"ASSUMPTION: x264 medium; benchmark in P2-01"
+instance_vcpus,count,8,8,8,batch instance size for encode and transcription
+local_worker_vcpus,count,4,4,4,vCPUs a laptop can give one serial worker inside the 8 GB budget
+cluster_nodes,count,0,3,3,always-on nodes; demo runs on the laptop
+engineering_hours_month,hours,43,43,80,demo: owner's 10 h/week (U 2026-09-28); pilot and scale are illustrations
+operations_hours_month,hours,0,16,40,"on-call, upgrades, restore rehearsals, storage operations (pitch §9); demo operations count inside engineering"
+moderation_support_hours_month,hours,0,4,20,comment moderation and listener support (pitch §9)
+contingency_fraction,ratio,0,0.2,0.2,applied to the known infrastructure subtotal

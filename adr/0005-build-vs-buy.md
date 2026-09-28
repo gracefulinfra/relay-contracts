@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-26
+status: accepted
+date: 2026-09-28
 decision-makers: "@lafronzt (project owner)"
 prompt: P0-03
 ---
@@ -12,8 +12,8 @@ prompt: P0-03
 Pitch §9 asks for "a fair comparison between an integrated vendor, an open-source base with customization, and
 the proposed custom platform", using the **same** editorial, moderation, migration, and support requirements for
 each. P0-02 ([Castopod evaluation](../evaluations/castopod.md)) and P0-03 ([vendor desk
-evaluation](../evaluations/vendors.md)) supply the evidence. This ADR records the comparison and a proposed
-decision. Its status stays **`proposed`** until the P0-08 gate finalizes it.
+evaluation](../evaluations/vendors.md)) supply the evidence. This ADR records the comparison and the decision.
+It was proposed on 2026-09-26 and **accepted at the P0-08 gate on 2026-09-28** (see [Gate decision](#gate-decision-p0-08)).
 
 The P0-03 prompt names this file `adr/0003-build-vs-buy.md`. Number 0003 was already used by the P0-01 bootstrap,
 and P0-08 refers to the build-vs-buy ADR as **0005**, so it lives here.
@@ -120,7 +120,7 @@ prices from [`vendors.md`](../evaluations/vendors.md) section C.
 
 ## Decision Outcome
 
-Proposed option: **"(c) Custom Relay"**. It is the only option that can satisfy R2, R11, R12, and R13, which are
+Chosen option: **"(c) Custom Relay"**, accepted at P0-08 with the bounds below. It is the only option that can satisfy R2, R11, R12, and R13, which are
 the requirements that make Relay a distinct proposal rather than a re-hosting exercise. For a portfolio project, the
 strategic value term in §9 is the demonstration of that architecture.
 
@@ -141,6 +141,25 @@ hosting:
 - **Keep Omny Studio as the named benchmark** in portfolio write-ups. Relay's claim is workflow fit and ownership,
   not feature breadth.
 
+### Gate decision (P0-08)
+
+**Accepted** on 2026-09-28 by the project owner, with the [Phase 0 gate report](../reports/phase-0.md).
+
+- **Why (c) is accepted.** The only non-zero benefit term for this project is the strategic value of
+  demonstrating the architecture, and the cost side fits the owner's budget. The [cost model](../reports/cost-model.md)
+  puts the portfolio demo at **$0 cash** and 43 owner-hours a month, inside the budget of about 10 hours a week and
+  $0 (owner decision, 2026-09-28). P0-05 fits the platform in 4.4 GiB of a 7.75 GiB laptop VM, and P0-07 restored it
+  with 0 manual steps. None of the "toward narrowing (c)" conditions below were met.
+- **What the cost model confirms about the counterfactual.** For the 2-show pilot, Relay's known infrastructure alone
+  is $191–$318 a month (before edge, control plane, and people), against $72–$128 a month for the vendor stack with
+  operations included. The recommendation for a real network stays **(a)**.
+- **Bounds on the acceptance.** Phase 1 runs locally at $0. Entry conditions are P0-04 PR 2 (OpenAPI v0) before P1-01
+  and P1-12, and P0-05 PR 3 (observability) before P1-05. If the publish-to-delivery path (P1-01 to P1-11) isn't
+  merged within 16 weeks, or the laptop can't hold the resource budget, the gate is re-run as "narrow", and the
+  report's narrow fallback applies.
+- **Not established.** Provider portability (only a local rehearsal exists), production availability, and any
+  commercial benefit.
+
 ### Consequences
 
 - Good, because every architecture rule and every pitch differentiator can be demonstrated and tested (R2,
@@ -157,7 +176,8 @@ hosting:
 
 ### Confirmation
 
-- P0-08 confirms or rejects this ADR, using the cost model and portability evidence from P0-05 to P0-07.
+- P0-08 accepted this ADR on 2026-09-28, using the cost model and portability evidence from P0-05 to P0-07. See
+  [Gate decision](#gate-decision-p0-08).
 - Each Phase 1–3 gate re-checks the R-table rows its prompts claim. A row may move to **Meets** only with the
   evidence the prompt's acceptance criteria require.
 

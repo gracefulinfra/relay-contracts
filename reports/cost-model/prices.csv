@@ -1,0 +1,11 @@
+key,unit,local,aws_do,r2_do,source
+storage_gb_month,USD per GB-month,0,0.023,0.015,"aws_do: S3 Standard us-east-1, first 50 TB <https://aws.amazon.com/s3/pricing/>; r2_do: R2 Standard <https://developers.cloudflare.com/r2/pricing/>; checked 2026-09-28"
+egress_gb,USD per GB,0,0.09,0,"aws_do: S3 transfer out to internet, first 10 TB/month (next 40 TB $0.085; 100 GB free not applied); r2_do: R2 egress is free; checked 2026-09-28"
+put_per_1000,USD per 1000,0,0.005,0.0045,"aws_do: S3 PUT/COPY/POST/LIST; r2_do: Class A $4.50 per million; checked 2026-09-28"
+get_per_1000,USD per 1000,0,0.0004,0.00036,"aws_do: S3 GET; r2_do: Class B $0.36 per million; checked 2026-09-28"
+edge_gb,USD per GB,0,,,"CDN or edge in front of the origin (rule 2). Not priced: provider not chosen"
+instance_hour,USD per hour,0,0.25,0.25,"DigitalOcean CPU-Optimized 8 vCPU/16 GB droplet <https://www.digitalocean.com/pricing/droplets>; checked 2026-09-28"
+node_month,USD per month,0,48,48,"DigitalOcean Basic 4 vCPU/8 GB droplet (the laptop budget per node); checked 2026-09-28"
+k8s_control_plane_month,USD per month,0,,,"managed control plane or self-run; not priced: provider not chosen"
+hosted_transcription_min,USD per minute,,,,"hosted adapter (A8) not chosen; the model uses self-hosted faster-whisper compute"
+labour_rate_hour,USD per hour,0,,,"local: owner time is unpaid (U 2026-09-28), so cash is 0, but hours are reported; others: a network's fully loaded rate was not supplied (pitch §9)"
