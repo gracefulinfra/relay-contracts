@@ -109,6 +109,19 @@ spec, and the strict server) and the `clients/ts` type tests (P0-04 implementati
 Redocly CLI 2.54.3 was evaluated as the bundler and rejected: its hoisted `$defs` names collide once
 they become Go type names (`slug` and `Slug`). `scripts/bundle-openapi.mjs` prefixes them instead.
 
+## Dev stack images (pinned by P0-05, ADR 0009)
+
+relay-infra `compose/compose.yaml`, for the images the platform takes from Helm charts. SeaweedFS,
+Keycloak, and the OTel Collector contrib image use the same digests as the rows above. Verified on
+2026-09-28 with `docker buildx imagetools inspect`.
+
+| Image                                     | Pinned                   | Same version as               |
+| ----------------------------------------- | ------------------------ | ----------------------------- |
+| `docker.io/library/postgres:17.11-trixie` | `sha256:d74eeac9…2ec46f` | CNPG operand PostgreSQL 17.11 |
+| `docker.io/prom/prometheus:v3.15.0`       | `sha256:efd719c9…18753e` | prometheus chart 29.35.0      |
+| `docker.io/grafana/tempo:3.0.3`           | `sha256:0296560a…68d5`   | tempo chart 3.0.0             |
+| `docker.io/grafana/grafana:13.2.2`        | `sha256:ac461fb3…38a0`   | grafana chart 13.2.6          |
+
 ## Platform components (not yet pinned)
 
 These are the `01-CONVENTIONS.md` baselines. They are **unverified** until the prompt that deploys them
