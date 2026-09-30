@@ -122,17 +122,36 @@ Keycloak, and the OTel Collector contrib image use the same digests as the rows 
 | `docker.io/grafana/tempo:3.0.3`           | `sha256:0296560a…68d5`   | tempo chart 3.0.0             |
 | `docker.io/grafana/grafana:13.2.2`        | `sha256:ac461fb3…38a0`   | grafana chart 13.2.6          |
 
+## relay-api libraries (pinned by P1-01)
+
+Verified on 2026-09-30 with `go list -m <module>@latest` (the Go module proxy) and each project's GitHub
+releases. The pins live in relay-api `go.mod` (and the Makefile, for sqlc).
+
+| Component                                | Pinned                                                                  | Source                                                         | Verified   |
+| ---------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- | ---------- |
+| pgx (`github.com/jackc/pgx/v5`)          | v5.11.0                                                                 | <https://github.com/jackc/pgx/releases>                        | 2026-09-30 |
+| goose (`github.com/pressly/goose/v3`)    | v3.28.0                                                                 | <https://github.com/pressly/goose/releases>                    | 2026-09-30 |
+| sqlc                                     | 1.31.1, image `sqlc/sqlc:1.31.1` (`sha256:70f53171…e34e525537`)         | <https://github.com/sqlc-dev/sqlc/releases>                    | 2026-09-30 |
+| River (`github.com/riverqueue/river`)    | v0.47.0 (schema `river`, migrations 002–006 dumped with its CLI)        | <https://github.com/riverqueue/river/releases>                 | 2026-09-30 |
+| otelriver (`riverqueue/rivercontrib`)    | v0.12.0                                                                 | <https://github.com/riverqueue/rivercontrib/releases>          | 2026-09-30 |
+| OpenTelemetry Go SDK                     | v1.46.0 (otelhttp v0.71.0; Prometheus bridge v0.68.0)                   | <https://github.com/open-telemetry/opentelemetry-go/releases>  | 2026-09-30 |
+| otelpgx (`github.com/exaring/otelpgx`)   | v0.12.0                                                                 | <https://github.com/exaring/otelpgx/releases>                  | 2026-09-30 |
+| Prometheus client (`client_golang`)      | v1.24.1                                                                 | <https://github.com/prometheus/client_golang/releases>         | 2026-09-30 |
+| env (`github.com/caarlos0/env/v11`)      | v11.4.1                                                                 | <https://github.com/caarlos0/env/releases>                     | 2026-09-30 |
+| oapi-codegen runtime                     | v1.7.0 (matches the `gen/go` module)                                    | <https://github.com/oapi-codegen/runtime/releases>             | 2026-09-30 |
+| testcontainers-go (+ `modules/postgres`) | v0.44.0 (`moby/go-archive` raised to v0.3.0 for GO-2026-6253)           | <https://github.com/testcontainers/testcontainers-go/releases> | 2026-09-30 |
+| PostgreSQL test image                    | `postgres:17.11-trixie` (`sha256:d74eeac9…8712ec46f`), as the dev stack | `docker buildx imagetools inspect`                             | 2026-09-30 |
+
 ## Platform components (not yet pinned)
 
 These are the `01-CONVENTIONS.md` baselines. They are **unverified** until the prompt that deploys them
 checks the official release documentation and adds a row above.
 
-| Component                              | Baseline            | Pinned by |
-| -------------------------------------- | ------------------- | --------- |
-| River, sqlc, goose, pgx                | — / 1.31.x / — / v5 | P1-01     |
-| Astro                                  | 6                   | P1-14     |
-| React, Vite, TanStack Router and Query | —                   | P1-12     |
-| faster-whisper                         | —                   | P1-07     |
+| Component                              | Baseline | Pinned by |
+| -------------------------------------- | -------- | --------- |
+| Astro                                  | 6        | P1-14     |
+| React, Vite, TanStack Router and Query | —        | P1-12     |
+| faster-whisper                         | —        | P1-07     |
 
 ## Portability rehearsal (pinned by P0-07)
 
