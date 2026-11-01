@@ -3,9 +3,9 @@ module github.com/gracefulinfra/relay-contracts/gen/go
 go 1.27.1
 
 require (
-	github.com/getkin/kin-openapi v0.149.0
+	github.com/getkin/kin-openapi v0.152.0
 	github.com/oapi-codegen/nullable v1.2.0
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.8.0
 )
 
 require (

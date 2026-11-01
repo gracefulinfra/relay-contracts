@@ -6,7 +6,7 @@
 # Pinned by digest; secrets come from .env (generated, never committed).
 services:
   castopod:
-    image: castopod/castopod:1.15.5@sha256:4e4f0440520f45257bfeac7be4347defd20048b4efef8f53d73ec9ed3a4f7966
+    image: castopod/castopod:1.15.6@sha256:bb9cf0970b88bb722746a6c2960e2862f484411ab1080a2876543170ca504853
     volumes:
       - castopod-media:/app/public/media
     environment:
@@ -31,12 +31,12 @@ services:
       mariadb: { condition: service_healthy }
       redis: { condition: service_started }
   mailpit: # local SMTP catcher for invite / magic-link emails
-    image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
+    image: axllent/mailpit:v1.33@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     environment: { MP_SMTP_AUTH_ACCEPT_ANY: "1", MP_SMTP_AUTH_ALLOW_INSECURE: "1" }
     networks: [castopod-app]
     ports: ["8025:8025"]
   mariadb:
-    image: mariadb:12.1@sha256:e487701b1f7e3f47319fe005b417c72becb67824a58b7bd35c6505f070f66dcd
+    image: mariadb:12.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
     networks: [castopod-db]
     volumes: [castopod-db:/var/lib/mysql]
     environment:
@@ -51,7 +51,7 @@ services:
       timeout: 5s
       retries: 3
   redis:
-    image: redis:8.4-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
+    image: redis:8.10-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
     command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PW"']
     environment:
       REDIS_PW: ${REDIS_PW}
